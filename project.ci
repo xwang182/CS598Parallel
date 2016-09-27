@@ -1,0 +1,22 @@
+
+mainmodule project{
+  readonly CProxy_Master mainProxy;
+  readonly int numElements;
+
+  mainchare Master {
+    entry Master(CkArgMsg* msg);
+    entry [reductiontarget] void done(int value);
+  };
+
+  array [1D] Project {
+    entry Project();
+
+    entry void run(){
+      serial "finished" {
+          int sending_value = 1;
+          contribute(sizeof(int), &sending_value, CkReduction::sum_int,
+          CkCallback(CkReductionTarget(Master, done), mainProxy));
+      }
+    };
+  };
+};
