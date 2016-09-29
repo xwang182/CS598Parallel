@@ -1,2 +1,2 @@
 # CS598Parallel
-Just a skeleton
+* [proposal](/doc/proposal.md)
