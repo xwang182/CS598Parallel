@@ -1,0 +1,86 @@
+mainmodule ParticleExercise {
+
+  include "Particle.h";
+  readonly CProxy_Main mainProxy;
+  readonly CProxy_Cell cellProxy;
+  readonly int particlesPerCell;
+  readonly int cellDimension;
+  readonly double delta;
+
+  mainchare Main {
+    entry Main(CkArgMsg* m);
+    //Done; TODO: add an entry methods to receive the reductions
+    entry [reductiontarget] void maxCheck(int maxArray[2]);
+    entry [reductiontarget] void totalCheck(int totalArray[2]);
+    entry [reductiontarget] void done();
+
+    entry [reductiontarget] void printCheck(int check);
+ 
+  };
+
+  array [2D] Cell {
+    entry Cell();
+    entry void updateNeighbor(int iter, std::vector<Particle> incoming);
+    entry void nextIter(int iter);
+
+    // Main computation
+    entry void run() {
+      serial "start"{
+        // CkPrintf("We start, x: %d, y: %d\n", thisIndex.x,thisIndex.y);
+        thisProxy(thisIndex.x,thisIndex.y).nextIter(0);
+      }
+      for(iteration=0; iteration<ITERATION; iteration++){
+        //TODO: Call updateParticles
+        when nextIter[iteration](int iter) serial{
+          updateParticles();
+
+          
+          // if(iteration>=4){
+          //   CkPrintf("ITER %d, chare.x: %d,chare.y: %d\n", iteration, thisIndex.x,thisIndex.y);
+          // }
+          
+          int atom = 1;
+          CkCallback cb(CkReductionTarget(Main, printCheck), mainProxy);
+          contribute(sizeof(int), &atom, CkReduction::sum_int, cb);
+        }
+
+        //TODO: Collect incoming particles from 4 neighbours
+        for(wait=0; wait<7; wait++){
+          when updateNeighbor[iteration](int iter, std::vector<Particle> incoming) serial{
+            for(int i=0;i<incoming.size();i++){
+              particles.push_back(incoming[i]);
+            }
+          }
+        }
+        when updateNeighbor[iteration](int iter, std::vector<Particle> incoming) serial{
+          for(int i=0;i<incoming.size();i++){
+            particles.push_back(incoming[i]);
+          }
+
+          if( (iteration+1)%step==0 ){
+            int reduce[2];
+            reduce[0] = iteration+1;
+            reduce[1] = (int)(particles.size());
+            // CkPrintf("iteration %d, particles: %d\n", reduce[0], reduce[1]);
+            contribute(2*sizeof(int), &reduce, CkReduction::max_int,
+              CkCallback(CkReductionTarget(Main, maxCheck), mainProxy));
+            contribute(2*sizeof(int), &reduce, CkReduction::sum_int,
+              CkCallback(CkReductionTarget(Main, totalCheck), mainProxy));
+          } 
+
+          thisProxy(thisIndex.x,thisIndex.y).nextIter(iteration+1);
+        }
+        // ask: wait eight times, do not move until eight vector comes
+
+        //Done; TODO: Add contribute calls for reductions of max and avg calculation
+       
+      }//end of the iteration loop
+
+      //Done; TODO: Add contribute call for finishing the execution
+      serial "finish" {
+        CkCallback cbDone(CkReductionTarget(Main, done), mainProxy);
+        contribute(0, NULL, CkReduction::nop, cbDone);
+      }
+    };
+  };
+};
