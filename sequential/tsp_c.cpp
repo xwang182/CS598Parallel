@@ -145,7 +145,10 @@ vector< pair<double, double> > readTspFile(string filePath)
   string line;
   int count = 0;
   bool foundEntry = false;
-  while (std::getline(infile, line)) {
+  while (getline(infile, line)) {
+    if (line[0] == '1') {
+      foundEntry = true;
+    }
     if (foundEntry) { // begin to read data
       std::istringstream iss(line);
       int index;
@@ -155,9 +158,6 @@ vector< pair<double, double> > readTspFile(string filePath)
       outputVector.push_back(make_pair(x, y));
     }
 
-    if (line.compare("NODE_COORD_SECTION") == 0) {
-      foundEntry = true;
-    }
     count++;
   }
 
@@ -175,9 +175,6 @@ main(int   argc,
     cout << "Usage: tsp_c++ .tsp_file_path" << endl;
     return 1;
   }
-
-  string filePath(argv[1]);
-  vector< pair<double, double> > coords = readTspFile(filePath);
   /*
   int n = atoi(argv[1]);
   double* x = new double[n];
@@ -189,6 +186,10 @@ main(int   argc,
     y[i] = ((double) rand())/RAND_MAX;
   }
   */
+
+  string filePath(argv[1]);
+  vector< pair<double, double> > coords = readTspFile(filePath);
+  cout << "Total count: " << coords.size() << endl;
 
   int n = coords.size();
   double* x = new double[n];
@@ -215,11 +216,9 @@ main(int   argc,
     GRBModel model = GRBModel(*env);
 
     // Must set LazyConstraints parameter when using lazy constraints
-
     model.set(GRB_IntParam_LazyConstraints, 1);
 
     // Create binary decision variables
-
     for (i = 0; i < n; i++) {
       for (j = 0; j <= i; j++) {
         vars[i][j] = model.addVar(0.0, 1.0, distance(x, y, i, j),
@@ -229,7 +228,6 @@ main(int   argc,
     }
 
     // Degree-2 constraints
-
     for (i = 0; i < n; i++) {
       GRBLinExpr expr = 0;
       for (j = 0; j < n; j++)
@@ -238,21 +236,17 @@ main(int   argc,
     }
 
     // Forbid edge from node back to itself
-
     for (i = 0; i < n; i++)
       vars[i][i].set(GRB_DoubleAttr_UB, 0);
 
     // Set callback function
-
     subtourelim cb = subtourelim(vars, n);
     model.setCallback(&cb);
 
     // Optimize model
-
     model.optimize();
 
     // Extract solution
-
     if (model.get(GRB_IntAttr_SolCount) > 0) {
       double **sol = new double*[n];
       for (i = 0; i < n; i++)
