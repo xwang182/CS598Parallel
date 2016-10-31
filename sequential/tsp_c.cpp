@@ -12,6 +12,8 @@
 #include <cstdlib>
 #include <cmath>
 #include <sstream>
+#include <vector>
+#include <fstream>
 using namespace std;
 
 string itos(int i) {stringstream s; s << i; return s.str(); }
@@ -135,15 +137,48 @@ distance(double* x,
   return sqrt(dx*dx+dy*dy);
 }
 
+// YIYI: Read .tsp file
+vector< pair<double, double> > readTspFile(string filePath)
+{
+  vector< pair<double, double> > outputVector;
+  ifstream infile(filePath);
+  string line;
+  int count = 0;
+  bool foundEntry = false;
+  while (std::getline(infile, line)) {
+    if (foundEntry) { // begin to read data
+      std::istringstream iss(line);
+      int index;
+      double x, y;
+      if (!(iss >> index >> x >> y)) { break; } // error
+
+      outputVector.push_back(make_pair(x, y));
+    }
+
+    if (line.compare("NODE_COORD_SECTION") == 0) {
+      foundEntry = true;
+    }
+    count++;
+  }
+
+  return outputVector;
+}
+
 int
 main(int   argc,
      char *argv[])
 {
+
+  // readTspFile("../data/usa115475.tsp");
+
   if (argc < 2) {
-    cout << "Usage: tsp_c++ size" << endl;
+    cout << "Usage: tsp_c++ .tsp_file_path" << endl;
     return 1;
   }
 
+  string filePath(argv[1]);
+  vector< pair<double, double> > coords = readTspFile(filePath);
+  /*
   int n = atoi(argv[1]);
   double* x = new double[n];
   double* y = new double[n];
@@ -153,6 +188,18 @@ main(int   argc,
     x[i] = ((double) rand())/RAND_MAX;
     y[i] = ((double) rand())/RAND_MAX;
   }
+  */
+
+  int n = coords.size();
+  double* x = new double[n];
+  double* y = new double[n];
+
+  int i;
+  for (i = 0; i < n; i++) {
+    x[i] = coords[i].first;
+    y[i] = coords[i].second;
+  }
+
 
   GRBEnv *env = NULL;
   GRBVar **vars = NULL;
