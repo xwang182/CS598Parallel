@@ -138,10 +138,10 @@ distance(double* x,
 }
 
 // YIYI: Read .tsp file
-vector< pair<double, double> > readTspFile(string filePath)
+vector< pair<double, double> > readTspFile(string file_path)
 {
-  vector< pair<double, double> > outputVector;
-  ifstream infile(filePath);
+  vector< pair<double, double> > output_vector;
+  ifstream infile(file_path);
   string line;
   int count = 0;
   bool foundEntry = false;
@@ -155,13 +155,13 @@ vector< pair<double, double> > readTspFile(string filePath)
       double x, y;
       if (!(iss >> index >> x >> y)) { break; } // error
 
-      outputVector.push_back(make_pair(x, y));
+      output_vector.push_back(make_pair(x, y));
     }
 
     count++;
   }
 
-  return outputVector;
+  return output_vector;
 }
 
 int
@@ -169,10 +169,9 @@ main(int   argc,
      char *argv[])
 {
 
-  // readTspFile("../data/usa115475.tsp");
-
   if (argc < 2) {
-    cout << "Usage: tsp_c++ .tsp_file_path" << endl;
+    // tsp file_path thread_num
+    cout << "Usage: tsp .tsp_file_path [thread_num]" << endl;
     return 1;
   }
   /*
@@ -187,8 +186,13 @@ main(int   argc,
   }
   */
 
-  string filePath(argv[1]);
-  vector< pair<double, double> > coords = readTspFile(filePath);
+  int thread_num = 0;
+  if (argc == 3) {
+    thread_num = atoi(argv[2]);
+  }
+
+  string file_path(argv[1]);
+  vector< pair<double, double> > coords = readTspFile(file_path);
   cout << "Total count: " << coords.size() << endl;
 
   int n = coords.size();
@@ -214,6 +218,9 @@ main(int   argc,
 
     env = new GRBEnv();
     GRBModel model = GRBModel(*env);
+
+    // Set thread num
+    model.set(GRB_IntParam_Threads, thread_num);
 
     // Must set LazyConstraints parameter when using lazy constraints
     model.set(GRB_IntParam_LazyConstraints, 1);

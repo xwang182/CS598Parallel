@@ -7,10 +7,16 @@
 ```sh
 cd sequential
 make
-./tsp filePath
-```
+./tsp file_path thread_num
+```  
+If `thread_num` is omitted, then gurobi will try to use as many threads as possible.  
 
 eg:  
 ```sh  
 ./tsp ../data/usa115475.tsp  
+```
+
+eg: `sequential` use `1 thread`
+```sh
+./tsp ../data/usa115475.tsp 1
 ```
