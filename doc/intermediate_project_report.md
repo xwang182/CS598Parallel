@@ -116,7 +116,7 @@ Load balancing is important if we want to scale the branch and bound algorithm o
 
 
 # Reference
-[1] reference Li, Ying, Kai Ma, and Jiong Zhang. "An Efficient Multicore Based Parallel Computing Approach for TSP Problems." Semantics, Knowledge and Grids (SKG), 2013 Ninth International Conference on. IEEE, 2013.   
+[1] Li, Ying, Kai Ma, and Jiong Zhang. "An Efficient Multicore Based Parallel Computing Approach for TSP Problems." Semantics, Knowledge and Grids (SKG), 2013 Ninth International Conference on. IEEE, 2013.   
   
 [2] Leonardo Zambito, “The Traveling Salesman Problem:A Comprehensive Survey”, Submitted as a project for CSE 4080, Fall 2006, 1-23.
 
