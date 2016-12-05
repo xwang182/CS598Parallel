@@ -6,14 +6,60 @@
 #include "CoinPackedMatrix.hpp"
 #include "CoinPackedVector.hpp"
 
+#include <vector>
+#include <cassert>
+#include <cstdlib>
+#include <cmath>
+#include <sstream>
+#include <fstream>
+using namespace std;
+
+string itos(int i) {stringstream s; s << i; return s.str(); }
+
+vector< pair<double, double> > readTspFile(string file_path)
+{
+  vector< pair<double, double> > output_vector;
+  ifstream infile(file_path);
+  string line;
+  int count = 0;
+  bool foundEntry = false;
+  while (getline(infile, line)) {
+    if (line[0] == '1') {
+      foundEntry = true;
+    }
+    if (foundEntry) { // begin to read data
+      std::istringstream iss(line);
+      int index;
+      double x, y;
+      if (!(iss >> index >> x >> y)) { break; } // error
+
+      output_vector.push_back(make_pair(x, y));
+    }
+
+    count++;
+  }
+
+  return output_vector;
+}
+
 int
-main(void)
+main(int argc, 
+     char* argv[])
 {
   // Create a problem pointer.  We use the base class here.
   OsiSolverInterface *si;
 
   // When we instantiate the object, we need a specific derived class.
   si = new OsiClpSolverInterface;
+  
+  if (argc < 2) {
+    cout << "Usage: tsp_clp .tsp_file_path" << endl;
+    return 1;
+  }
+  
+  string file_path(argv[1]);
+  // vector< pair<double, double> > coords = readTspFile(file_path);
+  // cout << coords.size() << endl;
 
   // Build our own instance from scratch
 
@@ -26,7 +72,7 @@ main(void)
    *  s.t       Sum: x_ij = 2
    *            Sum: x_ij < |S| - 1
    */
-
+  
   int n_cols = 2;
   double *objective    = new double[n_cols];//the objective coefficients
   double *col_lb       = new double[n_cols];//the column lower bounds
