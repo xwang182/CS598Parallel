@@ -6,3 +6,4 @@
 * [TSP & Integer(Linear) Programming](http://www.cs.cmu.edu/~guyb/realworld/slidesF08/linear3.pdf)  
 * [Gurobi TSP Example (Python)](http://examples.gurobi.com/traveling-salesman-problem/)  
 * [Gurobi TSP C++](http://www.gurobi.com/documentation/7.0/examples/tsp_cpp_cpp.html)  
+* [Gurobi Integer Programming](http://www.gurobi.com/resources/getting-started/mip-basics)

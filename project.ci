@@ -1,22 +1,23 @@
 
 mainmodule project{
   readonly CProxy_Master mainProxy;
-  readonly int numElements;
+  readonly CProxy_Cache cacheProxy;
+  readonly map_t problem;
+  readonly distance_t dist;
 
   mainchare Master {
     entry Master(CkArgMsg* msg);
-    entry [reductiontarget] void done(int value);
+    entry void updateOFUB(double ofub, path_t path);
+    entry void done();
   };
 
-  array [1D] Project {
-    entry Project();
+  nodegroup Cache {
+    entry Cache(double ofub);
+    entry void updateOFUB(double ofub);
+  }
 
-    entry void run(){
-      serial "finished" {
-          int sending_value = 1;
-          contribute(sizeof(int), &sending_value, CkReduction::sum_int,
-          CkCallback(CkReductionTarget(Master, done), mainProxy));
-      }
-    };
+  array[1D] Slave {
+    entry Slave(path_t visited, path_t remained);
+
   };
 };
