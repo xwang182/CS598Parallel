@@ -19,7 +19,7 @@ string itos(int i) {stringstream s; s << i; return s.str(); }
 vector< pair<double, double> > readTspFile(string file_path)
 {
   vector< pair<double, double> > output_vector;
-  ifstream infile(file_path);
+  ifstream infile(file_path.c_str());
   string line;
   int count = 0;
   bool foundEntry = false;
