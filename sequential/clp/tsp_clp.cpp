@@ -18,18 +18,13 @@ main(void)
   // Build our own instance from scratch
 
   /*
-   * This section adapted from Matt Galati's example 
-   * on the COIN-OR Tutorial website.
-   *
-   * Problem from Bertsimas, Tsitsiklis page 21
+   * Traveling Salesman Problem
    *  
-   *  optimal solution: x* = (1,1)
+   *  http://examples.gurobi.com/traveling-salesman-problem/
    *  
-   *  minimize -1 x0 - 1 x1
-   *  s.t       1 x0 + 2 x1 <= 3
-   *            2 x0 + 1 x1 <= 3
-   *              x0        >= 0
-   *              x1        >= 0
+   *  minimize Sum: d_ij * x_ij
+   *  s.t       Sum: x_ij = 2
+   *            Sum: x_ij < |S| - 1
    */
 
   int n_cols = 2;
