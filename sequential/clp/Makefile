@@ -1,16 +1,4 @@
-# Copyright (C) 2006 International Business Machines and others.
-# All Rights Reserved.
-# This file is distributed under the Eclipse Public License.
-
-# $Id: Makefile.in 726 2006-04-17 04:16:00Z andreasw $
-
-##########################################################################
-#    You can modify this example makefile to fit for your own program.   #
-#    Usually, you only need to change the five CHANGEME entries below.   #
-##########################################################################
-
-# To compile other examples, either changed the following line, or
-# add the argument DRIVER=problem_name to make
+# Coin-CLP
 DRIVER = driver
 
 # CHANGEME: This should be the name of your executable
@@ -103,37 +91,10 @@ CYGPATH_W = echo
 
 # Here we list all possible generated objects or executables to delete them
 CLEANFILES = \
-	addBits.o addBits \
-	addColumns.o addColumns \
-	addRows.o addRows \
-	decomp2.o decomp2 \
-	decomp3.o decomp3 \
-	decompose.o decompose \
-	defaults.o defaults \
-	driver2.o driver2 \
-	driver.o driver \
-	driverC.o driverC \
-	dualCuts.o dualCuts \
-	ekk.o ekk \
-	ekk_interface.o ekk_interface \
-	hello.o hello \
-	makeDual.o makeDual \
-	minimum.o minimum \
-	modify.o modify \
-	network.o network \
-	pdco.o pdco \
-	piece.o piece \
-	rowColumn.o rowColumn \
-	sprint2.o sprint2 \
-	sprint.o sprint \
-	testBarrier.o testBarrier \
-	testBasis.o testBasis \
-	testGub2.o testGub2 \
-	testGub.o testGub \
-	testQP.o testQP \
-	useVolume.o useVolume
+	tsp_clp.o tsp_clp \
+	example_clp.o example_clp 
 
-all: $(EXE)
+all:	$(EXE)
 
 .SUFFIXES: .cpp .c .o .obj
 
