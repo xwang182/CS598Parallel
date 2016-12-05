@@ -11,10 +11,10 @@ project.o : project.C project.def.h project.decl.h
 project.def.h project.decl.h : project.ci
 	$(CHARMC) project.ci
 
-ARRSIZE=5
+TSPFILE=data/test3.tsp
 
 test: all
-	./charmrun +p4 ++local ./project $(ARRSIZE)
+	./charmrun +p6 ++local ./project $(TSPFILE)
 
 clean:
 	rm -f conv-host *.o charmrun project
