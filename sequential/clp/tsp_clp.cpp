@@ -377,7 +377,7 @@ main(int argc,
         // std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
       }
 
-      double cost = calculateCost(objective, solution, int n);
+      double cost = calculateCost(objective, solution, n);
       if (best_cost == -1 || best_cost > cost) {
         best_cost = cost;
       }
