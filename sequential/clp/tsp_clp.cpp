@@ -349,13 +349,27 @@ main(int argc,
           final_path = path;
         } else {
 	  cout << "subtour" << endl;
+	  printPath(path);
+	  /*
+	    cout << graph[0][26] << " " << graph[26][0] << endl;
+	    
+	  for (size_t i = 0; i < dist.size(); i++) {
+	    cout << i << ": ";
+	    for (size_t j = 0; j < dist.size(); j++) {
+	      cout << graph[i][j] << " ";
+	    }
+	    cout << "" << endl;
+	  }
+	  */
+	  
           Constraint new_constraint(constraint, cost); // new constraint
-
+	  
           CoinPackedVector vec;
           size_t path_size = path.size();
+	  if (path_size == 2) continue; // path_size = 1;
           for (size_t i = 0; i < path_size; i++) {
             size_t row = path[i];
-            size_t col = path[(i+1)%path_size];
+            size_t col = path[(i+1) % path_size];
 
             vec.insert(variable_map[row][col], 1.0);
           }
