@@ -97,7 +97,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
   // distance_t dist = copyDistanceMap(d);
   size_t V = dist.size();
 
-  int n_cols = dist.size() * dist.size() / 2 - dist.size();
+  size_t n_cols = dist.size() * dist.size() / 2 - dist.size();
   double *objective = new double[n_cols];
   double *col_lb = new double[n_cols];
   double *col_ub = new double[n_cols];
@@ -107,7 +107,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
   // minimize Sum: d_ij x_ij
 
   int count = 0;
-  idx_map_t varialbe_map;
+  idx_map_t variable_map;
   /*
   for (int i = 0; i < dist.size(); i++) {
     vector<int> row;
@@ -132,8 +132,8 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
       objective[count] = dist[i][j];
 
       // set variable map
-      varialbe_map[i][j] = count;
-      varialbe_map[j][i] = count;
+      variable_map[i][j] = count;
+      variable_map[j][i] = count;
 
       count++;
     }
@@ -149,7 +149,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
 
   // Constraint
   // Sum: x_ij = 2
-  int n_rows = V;
+  size_t n_rows = V;
   double *row_lb = new double[n_rows]; //the row lower bounds
   double *row_ub = new double[n_rows]; //the row upper bounds
 
@@ -162,7 +162,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
 
     for (int j = 0; j < n_rows; j++) {
       if (i == j) continue;
-      vec.insert(varialbe_map[i][j], 1.0);
+      vec.insert(variable_map[i][j], 1.0);
     }
 
     // Sum: x_ij = 2
