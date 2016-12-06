@@ -299,7 +299,7 @@ main(int argc,
       	}*/
 
         path_map_t graph; // adjacency matrix
-        for (int i = 0; i < dist.size(); i++) {
+        for (size_t i = 0; i < dist.size(); i++) {
           vector<int> row;
           row.resize(dist.size());
           graph.push_back(row);
@@ -318,11 +318,10 @@ main(int argc,
         vector<int> path;
         path.push_back(0);
         int source = 0;
-        int dest;
         while (true) {
-          for (int i = 0; i < dist.size(); i++) {
+          for (size_t i = 0; i < dist.size(); i++) {
             if (graph[source][i]) {
-              path.push(i);
+              path.push_back(i);
               source = i;
               continue;
             }
@@ -332,7 +331,6 @@ main(int argc,
         }
 
         // find subtour
-        bool find_subtour = false;
         if (path.size() == n_cols) { // no subtour
           best_cost = cost;
           final_solution = solution;
