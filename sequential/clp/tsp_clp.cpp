@@ -105,8 +105,8 @@ void solveLP(distance_t dist)
 
   size_t n_cols = dist.size() * dist.size() / 2 - dist.size();
   double *objective = new double[n_cols];
-  double *col_lb = new double[n_cols];
-  double *col_ub = new double[n_cols];
+  double *col_lb = new double[n_cols*2];
+  double *col_ub = new double[n_cols*2];
 
 
   // define the objective coefficients
@@ -124,7 +124,7 @@ void solveLP(distance_t dist)
     }
   }
   */
-  for (int i = 0; i < dist.size(); i++) {
+  for (size_t i = 0; i < dist.size(); i++) {
     vector<int> row;
     row.resize(dist.size());
     variable_map.push_back(row);
@@ -133,6 +133,7 @@ void solveLP(distance_t dist)
   for (size_t i = 0; i < dist.size() - 1; i++) {
     for (size_t j = i + 1; j < dist.size(); j++) {
       objective[count] = dist[i][j];
+      // cout << count << ": " << objective[count] << endl;
 
       // set variable map
       variable_map[i][j] = count;
@@ -153,46 +154,48 @@ void solveLP(distance_t dist)
   // TODO: refactor
   // define the variable lower/upper bounds
   // 0 <= x_ij <= 1
-  for (int i = 0; i < n_cols; i++) {
+  for (size_t i = 0; i < n_cols*2; i++) {
     col_lb[i] = 0;
     col_ub[i] = 1;
   }
 
   // Constraint
   // Sum: x_ij = 2
-  size_t n_rows = V;
+  size_t n_rows = V; // 1; // V;
   double *row_lb = new double[n_rows]; //the row lower bounds
   double *row_ub = new double[n_rows]; //the row upper bounds
 
   // define the constraint matrix
   CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
-  matrix->setDimensions(0, n_cols);
- 
+  matrix->setDimensions(0, (int)n_cols);
+  
+  
   for (int i = 0; i < n_rows; i++) {
     CoinPackedVector vec;
-    
+    // cout << "\n@ " << i << endl;
     for (int j = 0; j < n_rows; j++) {
       if (i == j) continue;
-      //cerr << i << " " << j << ": " << endl;
-      //cerr << variable_map[i][j] << endl;
       vec.insert(variable_map[i][j], 1.0);
+      // cout << variable_map[i][j] << endl; 
     }
 
     // Sum: x_ij = 2
     row_lb[i] = 2;
     row_ub[i] = 2;
     matrix->appendRow(vec);
-  }
-  
+  } 
 
   si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
+
+  si->writeMps("tsp");
+
 
   // Solve the (relaxation of the) problem
   si->initialSolve();
   if (si->isProvenOptimal()) {
     int n = si->getNumCols();
     const double* solution = si->getColSolution();
-
+    cout << "Solution: " << endl;
     for (int i = 0; i < n; i++) {
       std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
     }
