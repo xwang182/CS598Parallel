@@ -123,7 +123,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
     row.resize(dist.size());
     variable_map.push_back(row);
   }
-  
+
   for (size_t i = 0; i < dist.size() - 1; i++) {
     for (size_t j = dist.size() - 1 - i; j < dist.size(); j++) {
       objective[count] = dist[i][j];
@@ -159,6 +159,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
 
     for (int j = 0; j < n_rows; j++) {
       if (i == j) continue;
+      cerr << i << " " << j << ": " << variable_map[i][j] << endl;
       vec.insert(variable_map[i][j], 1.0);
     }
 
