@@ -18,6 +18,7 @@ using namespace std;
 typedef vector< pair<double, double> > map_t;
 typedef vector< vector<double> > distance_t;
 typedef vector< vector<int> > path_map_t;
+typedef path_map_t idx_map_t;
 typedef vector<int> path_t;
 
 string itos(int i) {stringstream s; s << i; return s.str(); }
@@ -89,21 +90,51 @@ distance_t copyDistanceMap(distance_t d) {
   return dist;
 }
 
-void solveLP(distance_t d)
+void solveLP(OsiSolverInterface *si, distance_t dist)
 {
-  distance_t dist = copyDistanceMap(d);
+  // distance_t dist = copyDistanceMap(d);
+  size_t V = dist.size();
 
-  int n_cols = dist.size() * dist[0].size();
+  int n_cols = dist.size() * dist.size() / 2 - dist.size();
   double *objective = new double[n_cols];
   double *col_lb = new double[n_cols];
   double *col_ub = new double[n_cols];
 
+
   // define the objective coefficients
   // minimize Sum: d_ij x_ij
-  for (int i = 0; i < n_cols; i++) {
-    int row = n_cols / dist[0].size();
-    int col = i - row * dist[0].size();
-    objective[i] = dist[row][col]
+
+  int count = 0;
+  idx_map_t variable_map;
+  /*
+  for (int i = 0; i < dist.size(); i++) {
+    vector<int> row;
+    row.resize(dist.size());
+    variable_map.push_back(row);
+  }
+  for (int i = 0; i < dist.size(); i++) {
+    for (int j = 0; j < dist.size(); j++) {
+      if (i < dist.size() - 1 && j >= dist.size() - 1 - i) {
+
+      }
+    }
+  }
+  */
+
+  for (int i = 0; i < dist.size() - 1; i++) {
+    vector<int> row;
+    row.resize(dist.size());
+    variable_map.push_back(row);
+
+    for (int j = dist.size() - 1 - i; j < dist.size(); j++) {
+      objective[count] = dist[i][j];
+
+      // set variable map
+      varialbe_map[i][j] = count;
+      varialbe_map[j][i] = count;
+
+      count++;
+    }
   }
 
   // TODO: refactor
@@ -116,6 +147,42 @@ void solveLP(distance_t d)
 
   // Constraint
   // Sum: x_ij = 2
+  int n_rows = V;
+  double *row_lb = new double[n_rows]; //the row lower bounds
+  double *row_ub = new double[n_rows]; //the row upper bounds
+
+  // define the constraint matrix
+  CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
+  matrix->setDimen(0, n_cols);
+
+  for (int i = 0; i < n_rows; i++) {
+    CoinPackedVector vec;
+
+    for (int j = 0; j < n_rows; j++) {
+      if (i == j) continue;
+      vec.insert(varialbe_map[i][j], 1.0);
+    }
+
+    // Sum: x_ij = 2
+    row_lb[i] = 2;
+    row_ub[i] = 2;
+    matrix->appendRow(vec);
+  }
+
+  si>loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
+
+  // Solve the (relaxation of the) problem
+  si->initialSolve();
+  if (si->isProvenOptimal()) {
+    int n = si->getNumCols();
+    const double* solution = si->getColSolution();
+
+    for (int i = 0; i < n; i++) {
+      std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
+    }
+  } else { // no solution
+    return;
+  }
 }
 
 int
@@ -136,7 +203,7 @@ main(int argc,
   string file_path(argv[1]);
   map_t coords = readTspFile(file_path);
   distance_t dist = calcDistanceMap(coords);
-  size_t V = coords.size();
+  solveLP(si, dist);
 
 
   // Build our own instance from scratch
@@ -150,7 +217,7 @@ main(int argc,
    *  s.t       Sum: x_ij = 2
    *            Sum: x_ij < |S| - 1
    */
-
+   /*
   int n_cols = 2;
   double *objective    = new double[n_cols];//the objective coefficients
   double *col_lb       = new double[n_cols];//the column lower bounds
@@ -219,7 +286,7 @@ main(int argc,
   } else {
     std::cout << "Didn't find optimal solution." << std::endl;
     // Could then check other status functions.
-  }
+  }*/
 
   return 0;
 }
