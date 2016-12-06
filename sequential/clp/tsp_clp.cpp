@@ -177,6 +177,73 @@ void printPath(vector<size_t> path)
   cout << "" <<endl;
 }
 
+vector<size_t> findPath(path_map_t graph, size_t source) {
+  
+  vector<size_t> path;
+  size_t original_source = source;
+  path.push_back(source);
+  while (true) {
+    for (size_t i = 0; i < graph.size(); i++) {
+      if (i != path[path.size() - 2] && graph[source][i]) {
+	path.push_back(i);
+	source = i;
+	break;
+      }
+    }
+    if (source == original_source) {
+      path.pop_back(); // remove 0
+      break;
+    }
+  }
+  return path;
+}
+
+vector<size_t> findShortestPath(path_map_t graph) {
+  vector<size_t> visited; 
+  visited.resize(graph.size());
+  
+  vector<size_t> path;
+
+  while(true) {
+    bool all_visited = true;
+    size_t source = 0;
+    for (size_t i = 0; i < visited.size(); i++) {
+      if (!visited[i]) {
+	all_visited = false;
+	source = i;
+	break;
+      }
+    }
+    if (all_visited)
+      break;
+    
+    vector<size_t> temp_path;
+    size_t original_source = source;
+    temp_path.push_back(source);
+    visited[source] = 1;
+    while (true) {
+      for (size_t i = 0; i < graph.size(); i++) {
+	if (i != temp_path[temp_path.size() - 2] && graph[source][i]) {
+	  temp_path.push_back(i);
+	  visited[i] = 1;
+	  source = i;
+	  break;
+	}
+      }
+      if (source == original_source) {
+	temp_path.pop_back(); // remove 0
+	break;
+      }
+    }
+    
+    if (temp_path.size() < path.size() || path.empty()) {
+      path = temp_path;
+    }
+  }
+
+  return path;
+}
+
 int
 main(int argc,
      char* argv[])
@@ -299,7 +366,7 @@ main(int argc,
       }
 
 
-      double cost = si->getObjValue(); // calculateCost(objective, solution, n);
+      double cost = si->getObjValue(); // calculateCost(objective, solution, n)
       if (best_cost != -1 && cost > best_cost) continue; // prune
 
       if (all_integers) {
@@ -329,36 +396,22 @@ main(int argc,
             graph[j][i] = (int)(solution[variable_map[j][i]]);
           }
         }
-
-        // start finding path
-        vector<size_t> path;
-        path.push_back(0);
-        size_t source = 0;
-        while (true) {
-          for (size_t i = 0; i < dist.size(); i++) {
-            if (i != path[path.size() - 2] && graph[source][i]) {
-              path.push_back(i);
-              source = i;
-              break;
-            }
-          }
-          if (source == 0) {
-            path.pop_back(); // remove 0
-            break;
-          }
-        }
+	
+	vector<size_t> path = findShortestPath(graph);
 
         // find subtour
         if (path.size() == dist.size()) { // no subtour
-          best_cost = cost;
-          final_solution = solution;
-          final_num_sols = n;
-          final_path = path;
+	  // printPath(path);
+	  //if (best_cost == -1 || cost <= best_cost) {
+	    best_cost = cost;
+	    final_solution = solution;
+	    final_num_sols = n;
+	    final_path = path;
+	    //}
         } else {
-	  /*
-	  cout << "subtour " << n_cols << " " << path.size() << endl;
-	  printPath(path);
-	  
+	  // cout << "subtour" << endl;
+	  // printPath(path);
+	  /*  
 	  // cout << graph[0][26] << " " << graph[26][0] << endl;
 	    
 	  for (size_t i = 0; i < dist.size(); i++) {
@@ -382,25 +435,27 @@ main(int argc,
             vec.insert(variable_map[row][col], 1.0);
           }
 
-          new_constraint.addConstraint(0.0, (double)(path_size - 1), vec);
+          new_constraint.addConstraint(1.0, (double)(path_size - 1), vec);
 
           constraints.insert(new_constraint);
         }
       } else {
-        vector<pair<double, int>> non_integer_sols;
+        // vector<pair<double, int>> non_integer_sols;
 
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
-          non_integer_sols.push_back(make_pair(solution[i], i));
-        }
+	  // cout << solution[i] << endl;
+          // non_integer_sols.push_back(make_pair(solution[i], i));
+	  //  }
 
-	       // sort non_integer_sols so that by the order of i ~ 0.5
-	        std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
-
-        for (size_t i = 0; i < non_integer_sols.size(); i++) {
-	         // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
-
-          int offset = non_integer_sols[i].second;
+	// sort non_integer_sols so that by the order of i ~ 0.5
+	// std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
+	
+        // for (size_t i = 0; i < non_integer_sols.size(); i++) {
+	  // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
+	  
+	  int offset = i;
+          // int offset = non_integer_sols[i].second;
           // branch and bound
           // LEFT: 0
           Constraint new_constraint_1(constraint, cost); // new constraint
@@ -413,7 +468,7 @@ main(int argc,
           CoinPackedVector vec_2;
           vec_2.insert(offset, 1.0);
           new_constraint_2.addConstraint(1.0, 1.0, vec_2);
-
+	  
           //	  cout << new_constraint_1.getPackedVectors().size() << endl;
           //	  cout << new_constraint_2.getPackedVectors().size() << endl;
 
@@ -426,9 +481,9 @@ main(int argc,
     }
   }
   
-  cout << "Node explored: " << iter << endl;
+  cout << "Iterations: " << iter << endl;
   cout << "Best Cost: " << best_cost << endl;
-  cout << "n_cols: " << n_cols << endl;
+  // cout << "n_cols: " << n_cols << endl;
   cout << "final_num_sols: " << final_num_sols << endl;
   if (final_solution) {
     printPath(final_path);
