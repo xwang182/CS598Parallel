@@ -387,8 +387,6 @@ main(int argc,
       double cost = calculateCost(objective, solution, n);
       if (best_cost == -1 || best_cost > cost) {
         best_cost = cost;
-        final_solution = solution;
-        final_num_sols = n;
       } else { // prune
         continue;
       }
@@ -399,6 +397,10 @@ main(int argc,
         //    compare to best_cost
         // > 1 component
         //    add subtour constraint
+        if (cost == best_cost) {
+          final_solution = solution;
+          final_num_sols = n;
+        }
       } else {
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
