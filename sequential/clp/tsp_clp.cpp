@@ -103,11 +103,10 @@ void solveLP(distance_t dist)
   // distance_t dist = copyDistanceMap(d);
   size_t V = dist.size();
 
-  size_t n_cols = dist.size() * dist.size() / 2 - dist.size();
+  size_t n_cols = dist.size() * (dist.size() - 1) / 2;
   double *objective = new double[n_cols];
-  double *col_lb = new double[n_cols*2];
-  double *col_ub = new double[n_cols*2];
-
+  double *col_lb = new double[n_cols];
+  double *col_ub = new double[n_cols];
 
   // define the objective coefficients
   // minimize Sum: d_ij x_ij
@@ -154,9 +153,13 @@ void solveLP(distance_t dist)
   // TODO: refactor
   // define the variable lower/upper bounds
   // 0 <= x_ij <= 1
-  for (size_t i = 0; i < n_cols*2; i++) {
+  for (size_t i = 0; i < n_cols; i++) {
     col_lb[i] = 0;
     col_ub[i] = 1;
+  }
+
+  for (int i = 0; i < n_cols; ++i) {
+    cout << i << ": " << objective[i] << " " << col_lb[i] << " " << col_ub[i] << endl;
   }
 
   // Constraint
