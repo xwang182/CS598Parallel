@@ -427,9 +427,11 @@ main(int argc,
   }
 
   cout << "Best Cost: " << best_cost << endl;
-  for (size_t i = 0; i < final_num_sols; i++) {
-    cout << i << ": " << final_solution[i] << endl;
-  }
+  cout << "n_cols: " << n_cols << endl;
+  cout << "final_num_sols: " << final_num_sols << endl;
+  // for (size_t i = 0; i < final_num_sols; i++) {
+    // cout << i << ": " << final_solution[i] << endl;
+  // }
 
 
 
