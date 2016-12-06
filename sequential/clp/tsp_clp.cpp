@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <queue>
+#include <set>
 #include <cassert>
 #include <cstdlib>
 #include <cmath>
@@ -107,7 +108,9 @@ class Constraint
 {
 public:
   Constraint();
-  Constraint(const Constraint &obj);
+  Constraint(double p);
+  Constraint(const Constraint &obj, double parent_cost);
+  bool operator< (const Constraint &right) const;
   double* getRowLowerBound();
   double* getRowUpperBound();
   void addConstraint(double lb, double ub, CoinPackedVector vec);
@@ -117,15 +120,30 @@ private:
   vector<double> row_lb;
   vector<double> row_ub;
   vector<CoinPackedVector> vecs;
+  double parent_cost;
 };
 
-Constraint::Constraint() {}
-Constraint::Constraint(const Constraint &obj)
+Constraint::Constraint() {
+  parent_cost = 0;
+}
+
+Constraint::Constraint(double p) {
+  parent_cost = p;
+}
+
+Constraint::Constraint(const Constraint &obj, double parent_cost)
 {
   row_lb = obj.row_lb;
   row_ub = obj.row_ub;
   vecs = obj.vecs;
+  parent_cost = parent_cost;
 }
+
+bool Constraint::operator< (const Constraint &right) const
+{
+  return parent_cost < right.parent_cost;
+}
+
 double* Constraint::getRowLowerBound()
 {
   return (double*)(&row_lb[0]);
@@ -143,6 +161,11 @@ void Constraint::addConstraint(double lb, double ub, CoinPackedVector vec)
   row_lb.push_back(lb);
   row_ub.push_back(ub);
   vecs.push_back(vec);
+}
+
+bool sortFunc(pair<double, int> v1, pair<double, int> v2) 
+{
+  return abs(v1.first - 0.5) < abs(v2.first - 0.5);
 }
 
 int
@@ -207,19 +230,20 @@ main(int argc,
   }
 
   // DFS
-  vector<Constraint> constraints;
-  constraints.push_back(initial_constraint);
+  set<Constraint> constraints;
+  constraints.insert(initial_constraint);
 
   const double* final_solution = NULL;
   int final_num_sols = -1;
 
   int iter = 0;
-  while (constraints.size() != 0) {
+  while (!constraints.empty()) {
     cout << "\nIteration: " << (iter) << endl;
     iter++;
 
-    Constraint constraint = constraints.back();
-    constraints.pop_back();
+    Constraint constraint = *(constraints.begin());
+    constraints.erase(constraints.begin());
+    // constraints.pop_back();
 
     double *row_lb = constraint.getRowLowerBound();
     double *row_ub = constraint.getRowUpperBound();
@@ -255,7 +279,7 @@ main(int argc,
       }
 
 
-      double cost = calculateCost(objective, solution, n);
+      double cost = si->getObjValue(); // calculateCost(objective, solution, n);
       if (best_cost != -1 && cost > best_cost) continue; // prune
 
       if (all_integers) {
@@ -269,7 +293,6 @@ main(int argc,
 	  final_solution = solution;
           final_num_sols = n;
 	}
-
       } else {
         vector<pair<double, int>> non_integer_sols;
 
@@ -277,18 +300,23 @@ main(int argc,
           if (solution[i] == 1 || solution[i] == 0) continue;
           non_integer_sols.push_back(make_pair(solution[i], i));
         }
+	
+	// sort non_integer_sols so that by the order of i ~ 0.5
+	std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
 
-        for (int i = 0; i < non_integer_sols.size(); i++) {
+        for (size_t i = 0; i < non_integer_sols.size(); i++) {
+	  // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
+
           int offset = non_integer_sols[i].second;
           // branch and bound
           // LEFT: 0
-          Constraint new_constraint_1(constraint); // new constraint
+          Constraint new_constraint_1(constraint, cost); // new constraint
           CoinPackedVector vec_1;
           vec_1.insert(offset, 1.0);
           new_constraint_1.addConstraint(0.0, 0.0, vec_1);
 
           // RIGHT: 1
-          Constraint new_constraint_2(constraint); // new constraint
+          Constraint new_constraint_2(constraint, cost); // new constraint
           CoinPackedVector vec_2;
           vec_2.insert(offset, 1.0);
           new_constraint_2.addConstraint(1.0, 1.0, vec_2);
@@ -296,8 +324,8 @@ main(int argc,
     //	  cout << new_constraint_1.getPackedVectors().size() << endl;
     //	  cout << new_constraint_2.getPackedVectors().size() << endl;
 
-          constraints.push_back(new_constraint_1);
-          constraints.push_back(new_constraint_2);
+          constraints.insert(new_constraint_1);
+          constraints.insert(new_constraint_2);
         }
       }
     } else {
