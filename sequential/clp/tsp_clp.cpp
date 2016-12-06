@@ -29,12 +29,12 @@ string itos(int i) {stringstream s; s << i; return s.str(); }
 map_t readTspFile(string file_path)
 {
   map_t output_vector;
-  ifstream infile(file_path.c_str());
+  ifstream infile(file_path);
   string line;
   int count = 0;
   bool foundEntry = false;
   while (getline(infile, line)) {
-    if (line[0] == '1') {
+    if (line[0] >= '0' && line[0] <= '9') {
       foundEntry = true;
     }
     if (foundEntry) { // begin to read data
@@ -202,7 +202,7 @@ vector<size_t> findShortestPath(path_map_t graph) {
     visited[source] = 1;
     while (true) {
       for (size_t i = 0; i < graph.size(); i++) {
-	if (i != temp_path[temp_path.size() - 2] && graph[source][i]) {
+	if ((i != temp_path[temp_path.size() - 2]/*|| temp_path.size() == 1*/) && graph[source][i]) {
 	  temp_path.push_back(i);
 	  visited[i] = 1;
 	  source = i;
@@ -297,7 +297,7 @@ main(int argc,
 
   int iter = 0;
   while (!constraints.empty()) {
-    // cout << "\nIteration: " << (iter) << endl;
+    // cout << "Iteration: " << (iter) << endl;
     iter++;
 
     Constraint constraint = *(constraints.begin());
@@ -463,6 +463,7 @@ main(int argc,
   cout << "Iterations: " << iter << endl;
   cout << "Best Cost: " << best_cost << endl;
   // cout << "n_cols: " << n_cols << endl;
+  cout << "Path Size: " << final_path.size() << endl;
   cout << "final_num_sols: " << final_num_sols << endl;
   if (final_solution) {
     printPath(final_path);
