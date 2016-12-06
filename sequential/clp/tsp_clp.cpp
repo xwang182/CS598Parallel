@@ -317,7 +317,7 @@ main(int argc,
         // start finding path
         vector<size_t> path;
         path.push_back(0);
-        int source = 0;
+        size_t source = 0;
         while (true) {
           for (size_t i = 0; i < dist.size(); i++) {
             if (graph[source][i]) {
