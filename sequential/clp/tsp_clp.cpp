@@ -308,14 +308,14 @@ main(int argc,
         // set up graph
         for (size_t i = 0; i < dist.size() - 1; i++) {
           for (size_t j = i + 1; j < dist.size(); j++) {
-            graph[i][j] = solution[variable_map[i][j]];
-            graph[j][i] = solution[variable_map[j][i]];
+            graph[i][j] = (int)solution[variable_map[i][j]];
+            graph[j][i] = (int)solution[variable_map[j][i]];
 
           }
         }
 
         // start finding path
-        vector<int> path;
+        vector<size_t> path;
         path.push_back(0);
         int source = 0;
         while (true) {
