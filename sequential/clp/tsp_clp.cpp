@@ -1,30 +1,33 @@
 // Example of using COIN-OR OSI, building the instance internally
 // with sparse matrix object
 
-#
-include < iostream > #include "OsiClpSolverInterface.hpp"#
-include "CoinPackedMatrix.hpp"#
-include "CoinPackedVector.hpp"
+#include <iostream>
+#include "OsiClpSolverInterface.hpp"
+#include "CoinPackedMatrix.hpp"
+#include "CoinPackedVector.hpp"
 
-#
-include < vector > #include < queue > #include < set > #include < cassert > #include < cstdlib > #include < cmath > #include < sstream > #include < fstream >
-  using namespace std;
+#include <vector>
+#include <queue>
+#include <set>
+#include <cassert>
+#include <cstdlib>
+#include <cmath>
+#include <sstream>
+#include <fstream>
+using namespace std;
 
-typedef vector < pair < double, double > > map_t;
-typedef vector < vector < double > > distance_t;
-typedef vector < vector < int > > path_map_t;
+typedef vector< pair<double, double> > map_t;
+typedef vector< vector<double> > distance_t;
+typedef vector< vector<int> > path_map_t;
 typedef path_map_t idx_map_t;
-typedef vector < int > path_t;
+typedef vector<int> path_t;
 
 static double best_cost = -1;
 
-string itos(int i) {
-  stringstream s;
-  s << i;
-  return s.str();
-}
+string itos(int i) {stringstream s; s << i; return s.str(); }
 
-map_t readTspFile(string file_path) {
+map_t readTspFile(string file_path)
+{
   map_t output_vector;
   ifstream infile(file_path.c_str());
   string line;
@@ -38,9 +41,7 @@ map_t readTspFile(string file_path) {
       std::istringstream iss(line);
       int index;
       double x, y;
-      if (!(iss >> index >> x >> y)) {
-        break;
-      } // error
+      if (!(iss >> index >> x >> y)) { break; } // error
 
       output_vector.push_back(make_pair(x, y));
     }
@@ -51,28 +52,30 @@ map_t readTspFile(string file_path) {
   return output_vector;
 }
 
-double calcDistance(const pair < double, double > & a,
-  const pair < double, double > & b) {
+
+double calcDistance(const pair<double, double> &a, const pair<double, double> &b)
+{
   double dx = a.first - b.first;
   double dy = a.second - b.second;
 
   return sqrt(dx * dx + dy * dy);
 }
 
-distance_t calcDistanceMap(const map_t & problem) {
+distance_t calcDistanceMap(const map_t &problem)
+{
   distance_t dist;
 
   for (size_t i = 0; i < problem.size(); ++i) {
-    vector < double > tmp;
-    const pair < double, double > & a = problem[i];
+    vector<double> tmp;
+    const pair<double, double> &a = problem[i];
     for (size_t j = 0; j < problem.size(); ++j) {
 
       if (i == j) {
-        tmp.push_back(numeric_limits < double > ::infinity());
+        tmp.push_back(numeric_limits<double>::infinity());
         continue;
       }
 
-      const pair < double, double > & b = problem[j];
+      const pair<double, double> &b = problem[j];
       tmp.push_back(calcDistance(a, b));
     }
     dist.push_back(tmp);
@@ -82,18 +85,18 @@ distance_t calcDistanceMap(const map_t & problem) {
 }
 
 /*
-   distance_t copyDistanceMap(distance_t d) {
-   distance_t dist;
-   for (int i = 0; i < d.size(); i++) {
+distance_t copyDistanceMap(distance_t d) {
+  distance_t dist;
+  for (int i = 0; i < d.size(); i++) {
     vector<double> row = d[i];
     dist.push_back(row);
-   }
-   return dist;
-   }
- */
+  }
+  return dist;
+}
+*/
 
-double calculateCost(double * objective,
-  const double * solution, int num_sols) {
+double calculateCost(double* objective, const double* solution, int num_sols)
+{
   double cost = 0;
   for (int i = 0; i < num_sols; i++) {
     cost += objective[i] * solution[i];
@@ -101,21 +104,22 @@ double calculateCost(double * objective,
   return cost;
 }
 
-class Constraint {
-  public:
-    Constraint();
+class Constraint
+{
+public:
+  Constraint();
   Constraint(double p);
-  Constraint(const Constraint & obj, double parent_cost);
-  bool operator < (const Constraint & right) const;
-  double * getRowLowerBound();
-  double * getRowUpperBound();
+  Constraint(const Constraint &obj, double parent_cost);
+  bool operator< (const Constraint &right) const;
+  double* getRowLowerBound();
+  double* getRowUpperBound();
   void addConstraint(double lb, double ub, CoinPackedVector vec);
-  vector < CoinPackedVector > getPackedVectors();
+  vector<CoinPackedVector> getPackedVectors();
 
-  private:
-    vector < double > row_lb;
-  vector < double > row_ub;
-  vector < CoinPackedVector > vecs;
+private:
+  vector<double> row_lb;
+  vector<double> row_ub;
+  vector<CoinPackedVector> vecs;
   double parent_cost;
 };
 
@@ -127,39 +131,47 @@ Constraint::Constraint(double p) {
   parent_cost = p;
 }
 
-Constraint::Constraint(const Constraint & obj, double parent_cost) {
+Constraint::Constraint(const Constraint &obj, double parent_cost)
+{
   row_lb = obj.row_lb;
   row_ub = obj.row_ub;
   vecs = obj.vecs;
   parent_cost = parent_cost;
 }
 
-bool Constraint::operator < (const Constraint & right) const {
+bool Constraint::operator< (const Constraint &right) const
+{
   return parent_cost < right.parent_cost;
 }
 
-double * Constraint::getRowLowerBound() {
-  return (double * )( & row_lb[0]);
+double* Constraint::getRowLowerBound()
+{
+  return (double*)(&row_lb[0]);
 }
-double * Constraint::getRowUpperBound() {
-  return (double * )( & row_ub[0]);
+double* Constraint::getRowUpperBound()
+{
+  return (double*)(&row_ub[0]);
 }
-vector < CoinPackedVector > Constraint::getPackedVectors() {
+vector<CoinPackedVector> Constraint::getPackedVectors()
+{
   return vecs;
 }
-void Constraint::addConstraint(double lb, double ub, CoinPackedVector vec) {
+void Constraint::addConstraint(double lb, double ub, CoinPackedVector vec)
+{
   row_lb.push_back(lb);
   row_ub.push_back(ub);
   vecs.push_back(vec);
 }
 
-bool sortFunc(pair < double, int > v1, pair < double, int > v2) {
+bool sortFunc(pair<double, int> v1, pair<double, int> v2)
+{
   return abs(v1.first - 0.5) < abs(v2.first - 0.5);
 }
 
 int
 main(int argc,
-  char * argv[]) {
+     char* argv[])
+{
   if (argc < 2) {
     cout << "Usage: tsp_clp .tsp_file_path" << endl;
     return 1;
@@ -171,9 +183,9 @@ main(int argc,
   // solveLP(dist, -1, -1);
 
   size_t n_cols = dist.size() * (dist.size() - 1) / 2;
-  double * objective = new double[n_cols];
-  double * col_lb = new double[n_cols];
-  double * col_ub = new double[n_cols];
+  double *objective = new double[n_cols];
+  double *col_lb = new double[n_cols];
+  double *col_ub = new double[n_cols];
 
   // define the objective coefficients
   // minimize Sum: d_ij x_ij
@@ -181,7 +193,7 @@ main(int argc,
   idx_map_t variable_map;
 
   for (size_t i = 0; i < dist.size(); i++) {
-    vector < int > row;
+    vector<int> row;
     row.resize(dist.size());
     variable_map.push_back(row);
   }
@@ -218,10 +230,10 @@ main(int argc,
   }
 
   // DFS
-  set < Constraint > constraints;
+  set<Constraint> constraints;
   constraints.insert(initial_constraint);
 
-  const double * final_solution = NULL;
+  const double* final_solution = NULL;
   int final_num_sols = -1;
 
   int iter = 0;
@@ -229,33 +241,33 @@ main(int argc,
     cout << "\nIteration: " << (iter) << endl;
     iter++;
 
-    Constraint constraint = * (constraints.begin());
+    Constraint constraint = *(constraints.begin());
     constraints.erase(constraints.begin());
     // constraints.pop_back();
 
-    double * row_lb = constraint.getRowLowerBound();
-    double * row_ub = constraint.getRowUpperBound();
-    vector < CoinPackedVector > vecs = constraint.getPackedVectors();
+    double *row_lb = constraint.getRowLowerBound();
+    double *row_ub = constraint.getRowUpperBound();
+    vector<CoinPackedVector> vecs = constraint.getPackedVectors();
 
     // define the constraint matrix
-    CoinPackedMatrix * matrix = new CoinPackedMatrix(false, 0, 0);
-    matrix - > setDimensions(0, (int) n_cols);
+    CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
+    matrix->setDimensions(0, (int)n_cols);
 
     for (size_t i = 0; i < vecs.size(); i++) {
-      matrix - > appendRow(vecs[i]);
+      matrix->appendRow(vecs[i]);
     }
     cout << "row_constraint: " << vecs.size() << endl;
     //    cout << "n_cols: " << n_cols << endl;
 
     // Create a problem pointer.  We use the base class here.
     // When we instantiate the object, we need a specific derived class.
-    OsiSolverInterface * si = new OsiClpSolverInterface;
-    si - > loadProblem( * matrix, col_lb, col_ub, objective, row_lb, row_ub);
-    si - > initialSolve();
-    if (si - > isProvenOptimal()) {
-      int n = si - > getNumCols();
+    OsiSolverInterface *si = new OsiClpSolverInterface;
+    si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
+    si->initialSolve();
+    if (si->isProvenOptimal()) {
+      int n = si->getNumCols();
       // cout << "n: " << n << endl;
-      const double * solution = si - > getColSolution();
+      const double* solution = si->getColSolution();
 
       int all_integers = true;
       for (int i = 0; i < n; i++) {
@@ -266,7 +278,8 @@ main(int argc,
         // std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
       }
 
-      double cost = si - > getObjValue(); // calculateCost(objective, solution, n);
+
+      double cost = si->getObjValue(); // calculateCost(objective, solution, n);
       if (best_cost != -1 && cost > best_cost) continue; // prune
 
       if (all_integers) {
@@ -276,11 +289,11 @@ main(int argc,
         // > 1 component
         //    add subtour constraint
         /*
-           if (best_cost == -1 || best_cost > cost) {
-           best_cost = cost;
-           final_solution = solution;
-           final_num_sols = n;
-           }*/
+      	if (best_cost == -1 || best_cost > cost) {
+      	  best_cost = cost;
+      	  final_solution = solution;
+          final_num_sols = n;
+      	}*/
         // find subtour
         bool find_subtour = false;
         if (!find_subtour) {
@@ -289,21 +302,21 @@ main(int argc,
           final_num_sols = n;
         } else {
           // Assume I found shortest cycle
-          
+
         }
       } else {
-        vector < pair < double, int > > non_integer_sols;
+        vector<pair<double, int>> non_integer_sols;
 
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
           non_integer_sols.push_back(make_pair(solution[i], i));
         }
 
-        // sort non_integer_sols so that by the order of i ~ 0.5
-        std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
+	       // sort non_integer_sols so that by the order of i ~ 0.5
+	        std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
 
         for (size_t i = 0; i < non_integer_sols.size(); i++) {
-          // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
+	         // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
 
           int offset = non_integer_sols[i].second;
           // branch and bound
@@ -335,8 +348,10 @@ main(int argc,
   cout << "n_cols: " << n_cols << endl;
   cout << "final_num_sols: " << final_num_sols << endl;
   // for (size_t i = 0; i < final_num_sols; i++) {
-  // cout << i << ": " << final_solution[i] << endl;
+    // cout << i << ": " << final_solution[i] << endl;
   // }
+
+
 
   // Build our own instance from scratch
 
@@ -349,76 +364,76 @@ main(int argc,
    *  s.t       Sum: x_ij = 2
    *            Sum: x_ij < |S| - 1
    */
-  /*
-     int n_cols = 2;
-     double *objective    = new double[n_cols];//the objective coefficients
-     double *col_lb       = new double[n_cols];//the column lower bounds
-     double *col_ub       = new double[n_cols];//the column upper bounds
+   /*
+  int n_cols = 2;
+  double *objective    = new double[n_cols];//the objective coefficients
+  double *col_lb       = new double[n_cols];//the column lower bounds
+  double *col_ub       = new double[n_cols];//the column upper bounds
 
-     //Define the objective coefficients.
-     //minimize -1 x0 - 1 x1
-     objective[0] = -1.0;
-     objective[1] = -1.0;
+  //Define the objective coefficients.
+  //minimize -1 x0 - 1 x1
+  objective[0] = -1.0;
+  objective[1] = -1.0;
 
-     //Define the variable lower/upper bounds.
-     // x0 >= 0   =>  0 <= x0 <= infinity
-     // x1 >= 0   =>  0 <= x1 <= infinity
-     col_lb[0] = 0.0;
-     col_lb[1] = 0.0;
-     col_ub[0] = si->getInfinity();
-     col_ub[1] = si->getInfinity();
+  //Define the variable lower/upper bounds.
+  // x0 >= 0   =>  0 <= x0 <= infinity
+  // x1 >= 0   =>  0 <= x1 <= infinity
+  col_lb[0] = 0.0;
+  col_lb[1] = 0.0;
+  col_ub[0] = si->getInfinity();
+  col_ub[1] = si->getInfinity();
 
-     int n_rows = 2;
-     double *row_lb = new double[n_rows]; //the row lower bounds
-     double *row_ub = new double[n_rows]; //the row upper bounds
+  int n_rows = 2;
+  double *row_lb = new double[n_rows]; //the row lower bounds
+  double *row_ub = new double[n_rows]; //the row upper bounds
 
-     //Define the constraint matrix.
-     CoinPackedMatrix *matrix =  new CoinPackedMatrix(false,0,0);
-     matrix->setDimensions(0, n_cols);
+  //Define the constraint matrix.
+  CoinPackedMatrix *matrix =  new CoinPackedMatrix(false,0,0);
+  matrix->setDimensions(0, n_cols);
 
-     //1 x0 + 2 x1 <= 3  =>  -infinity <= 1 x0 + 2 x2 <= 3
-     CoinPackedVector row1;
-     row1.insert(0, 1.0);
-     row1.insert(1, 2.0);
-     row_lb[0] = -1.0 * si->getInfinity();
-     row_ub[0] = 3.0;
-     matrix->appendRow(row1);
+  //1 x0 + 2 x1 <= 3  =>  -infinity <= 1 x0 + 2 x2 <= 3
+  CoinPackedVector row1;
+  row1.insert(0, 1.0);
+  row1.insert(1, 2.0);
+  row_lb[0] = -1.0 * si->getInfinity();
+  row_ub[0] = 3.0;
+  matrix->appendRow(row1);
 
-     //2 x0 + 1 x1 <= 3  =>  -infinity <= 2 x0 + 1 x1 <= 3
-     CoinPackedVector row2;
-     row2.insert(0, 2.0);
-     row2.insert(1, 1.0);
-     row_lb[1] = -1.0 * si->getInfinity();
-     row_ub[1] = 3.0;
-     matrix->appendRow(row2);
+  //2 x0 + 1 x1 <= 3  =>  -infinity <= 2 x0 + 1 x1 <= 3
+  CoinPackedVector row2;
+  row2.insert(0, 2.0);
+  row2.insert(1, 1.0);
+  row_lb[1] = -1.0 * si->getInfinity();
+  row_ub[1] = 3.0;
+  matrix->appendRow(row2);
 
-     //load the problem to OSI
-     si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
+  //load the problem to OSI
+  si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
 
-     //write the MPS file to a file called example.mps
-     si->writeMps("example");
+  //write the MPS file to a file called example.mps
+  si->writeMps("example");
 
 
 
-     // Solve the (relaxation of the) problem
-     si->initialSolve();
+  // Solve the (relaxation of the) problem
+  si->initialSolve();
 
-     // Check the solution
-     if ( si->isProvenOptimal() ) {
-     std::cout << "Found optimal solution!" << std::endl;
-     std::cout << "Objective value is " << si->getObjValue() << std::endl;
+  // Check the solution
+  if ( si->isProvenOptimal() ) {
+    std::cout << "Found optimal solution!" << std::endl;
+    std::cout << "Objective value is " << si->getObjValue() << std::endl;
 
-     int n = si->getNumCols();
-     const double* solution = si->getColSolution();
+    int n = si->getNumCols();
+    const double* solution = si->getColSolution();
 
-     // We can then print the solution or could examine it.
-     for( int i = 0; i < n; ++i )
-     std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
+    // We can then print the solution or could examine it.
+    for( int i = 0; i < n; ++i )
+      std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
 
-     } else {
-     std::cout << "Didn't find optimal solution." << std::endl;
-     // Could then check other status functions.
-     }*/
+  } else {
+    std::cout << "Didn't find optimal solution." << std::endl;
+    // Could then check other status functions.
+  }*/
 
   return 0;
 }
