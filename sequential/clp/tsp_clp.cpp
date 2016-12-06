@@ -194,6 +194,9 @@ main(int argc,
 
   for (size_t i = 0; i < dist.size(); i++) {
     vector<int> row;
+    /*for (size_t j = 0; j < dist.size(); j++) {
+      row.push_back(-1);
+    }*/
     row.resize(dist.size());
     variable_map.push_back(row);
   }
@@ -294,15 +297,49 @@ main(int argc,
       	  final_solution = solution;
           final_num_sols = n;
       	}*/
+
+        path_map_t graph; // adjacency matrix
+        for (int i = 0; i < dist.size(); i++) {
+          vector<int> row;
+          row.resize(dist.size());
+          graph.push_back(row);
+        }
+
+        // set up graph
+        for (size_t i = 0; i < dist.size() - 1; i++) {
+          for (size_t j = i + 1; j < dist.size(); j++) {
+            graph[i][j] = solution[variable_map[i][j]];
+            graph[j][i] = solution[variable_map[j][i]];
+
+          }
+        }
+
+        // start finding path
+        vector<int> path;
+        path.push_back(0);
+        int source = 0;
+        int dest;
+        while (true) {
+          for (int i = 0; i < dist.size(); i++) {
+            if (graph[source][i]) {
+              path.push(i);
+              source = i;
+              continue;
+            }
+          }
+          if (source == 0)
+            break;
+        }
+
         // find subtour
         bool find_subtour = false;
-        if (!find_subtour) {
+        if (path.size() == n_cols) { // no subtour
           best_cost = cost;
           final_solution = solution;
           final_num_sols = n;
         } else {
           // Assume I found shortest cycle
-
+          cout << "find subtour" << endl;
         }
       } else {
         vector<pair<double, int>> non_integer_sols;
