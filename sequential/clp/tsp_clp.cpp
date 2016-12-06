@@ -103,137 +103,6 @@ double calculateCost(double* objective, const double* solution, int num_sols)
   return cost;
 }
 
-void solveLP(distance_t dist, int variable_offset, int variable_value)
-{
-  // Create a problem pointer.  We use the base class here.
-  OsiSolverInterface *si;
-
-  // When we instantiate the object, we need a specific derived class.
-  si = new OsiClpSolverInterface;
-
-  // distance_t dist = copyDistanceMap(d);
-  size_t V = dist.size();
-
-  size_t n_cols = dist.size() * (dist.size() - 1) / 2;
-  double *objective = new double[n_cols];
-  double *col_lb = new double[n_cols];
-  double *col_ub = new double[n_cols];
-
-  // define the objective coefficients
-  // minimize Sum: d_ij x_ij
-
-  int count = 0;
-  idx_map_t variable_map;
-  /*
-
-  for (int i = 0; i < dist.size(); i++) {
-    for (int j = 0; j < dist.size(); j++) {
-      if (i < dist.size() - 1 && j >= dist.size() - 1 - i) {
-
-      }
-    }
-  }
-  */
-  for (size_t i = 0; i < dist.size(); i++) {
-    vector<int> row;
-    row.resize(dist.size());
-    variable_map.push_back(row);
-  }
-
-  for (size_t i = 0; i < dist.size() - 1; i++) {
-    for (size_t j = i + 1; j < dist.size(); j++) {
-      objective[count] = dist[i][j];
-      // cout << count << ": " << objective[count] << endl;
-
-      // set variable map
-      variable_map[i][j] = count;
-      variable_map[j][i] = count;
-
-      count++;
-    }
-  }
-
-  /*
-  for (int i = 0; i < variable_map.size(); i++) {
-    for (int j = 0; j < variable_map[i].size(); j++) {
-      cout << i << " " << j << ": " << variable_map[i][j] << endl;
-    }
-  }
-  */
-
-  // TODO: refactor
-  // define the variable lower/upper bounds
-  // 0 <= x_ij <= 1
-  for (size_t i = 0; i < n_cols; i++) {
-    col_lb[i] = 0;
-    col_ub[i] = 1;
-  }
-
-  // Constraint
-  // Sum: x_ij = 2
-  size_t n_rows = V; // 1; // V;
-  double *row_lb = new double[n_rows]; //the row lower bounds
-  double *row_ub = new double[n_rows]; //the row upper bounds
-
-  // define the constraint matrix
-  CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
-  matrix->setDimensions(0, (int)n_cols);
-
-
-  for (size_t i = 0; i < n_rows; i++) {
-    CoinPackedVector vec;
-    // cout << "\n@ " << i << endl;
-    for (size_t j = 0; j < n_rows; j++) {
-      if (i == j) continue;
-      vec.insert(variable_map[i][j], 1.0);
-      // cout << variable_map[i][j] << endl;
-    }
-
-    // Sum: x_ij = 2
-    row_lb[i] = 2;
-    row_ub[i] = 2;
-    matrix->appendRow(vec);
-  }
-
-  si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
-
-  si->writeMps("tsp");
-
-
-  // Solve the (relaxation of the) problem
-  si->initialSolve();
-  if (si->isProvenOptimal()) {
-    int n = si->getNumCols();
-    const double* solution = si->getColSolution();
-
-    // cout << "Solution: " << endl;
-    bool all_integers = true;
-    for (int i = 0; i < n; i++) {
-      if (!(solution[i] == 1 || solution[i] == 0)) {
-        all_integers = false;
-        break;
-      }
-    }
-
-    if (all_integers) {
-      // subtour
-      // 1 component
-      //    compare to best_cost
-      // > 1 component
-      //    add subtour constraint
-    } else {
-      for (int i = 0; i < n; i++) {
-        // if (solution[i] == 1 || solution[i] == 0) continue;
-        // solveLP(dist);
-      }
-    }
-
-  } else { // no solution
-    return;
-  }
-  return;
-}
-
 class Constraint
 {
 public:
@@ -385,7 +254,7 @@ main(int argc,
         // std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
       }
 
-      
+
       double cost = calculateCost(objective, solution, n);
       if (best_cost != -1 && cost > best_cost) continue; // prune
 
@@ -399,26 +268,33 @@ main(int argc,
 	  best_cost = cost;
 	  final_solution = solution;
           final_num_sols = n;
-	}	
-	
+	}
+
       } else {
+        vector<pair<double, int>> non_integer_sols;
+
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
+          non_integer_sols.push_back(make_pair(solution[i], i));
+        }
+
+        for (int i = 0; i < non_integer_sols.size(); i++) {
+          int offset = non_integer_sols[i].second;
           // branch and bound
           // LEFT: 0
           Constraint new_constraint_1(constraint); // new constraint
           CoinPackedVector vec_1;
-          vec_1.insert(i, 1.0);
+          vec_1.insert(offset, 1.0);
           new_constraint_1.addConstraint(0.0, 0.0, vec_1);
 
           // RIGHT: 1
           Constraint new_constraint_2(constraint); // new constraint
           CoinPackedVector vec_2;
-          vec_2.insert(i, 1.0);
+          vec_2.insert(offset, 1.0);
           new_constraint_2.addConstraint(1.0, 1.0, vec_2);
 
-	  //	  cout << new_constraint_1.getPackedVectors().size() << endl;
-	  //	  cout << new_constraint_2.getPackedVectors().size() << endl;
+    //	  cout << new_constraint_1.getPackedVectors().size() << endl;
+    //	  cout << new_constraint_2.getPackedVectors().size() << endl;
 
           constraints.push_back(new_constraint_1);
           constraints.push_back(new_constraint_2);
