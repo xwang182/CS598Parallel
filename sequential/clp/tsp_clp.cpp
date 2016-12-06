@@ -363,12 +363,11 @@ main(int argc,
     for (size_t i = 0; i < vecs.size(); i++) {
       matrix->appendRow(vecs[i]);
     }
+    cout << "row_constraint: " << vecs.size() << endl;
 
     // Create a problem pointer.  We use the base class here.
-    OsiSolverInterface *si;
-
     // When we instantiate the object, we need a specific derived class.
-    si = new OsiClpSolverInterface;
+    OsiSolverInterface *si; = new OsiClpSolverInterface;
     si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
     si->initialSolve();
     if (si->isProvenOptimal()) {
