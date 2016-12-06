@@ -7,6 +7,7 @@
 #include "CoinPackedVector.hpp"
 
 #include <vector>
+#include <queue>
 #include <cassert>
 #include <cstdlib>
 #include <cmath>
@@ -14,11 +15,16 @@
 #include <fstream>
 using namespace std;
 
+typedef vector< pair<double, double> > map_t;
+typedef vector< vector<double> > distance_t;
+typedef vector< vector<int> > path_map_t;
+typedef vector<int> path_t;
+
 string itos(int i) {stringstream s; s << i; return s.str(); }
 
-vector< pair<double, double> > readTspFile(string file_path)
+map_t readTspFile(string file_path)
 {
-  vector< pair<double, double> > output_vector;
+  map_t output_vector;
   ifstream infile(file_path.c_str());
   string line;
   int count = 0;
@@ -42,8 +48,78 @@ vector< pair<double, double> > readTspFile(string file_path)
   return output_vector;
 }
 
+
+double calcDistance(const pair<double, double> &a, const pair<double, double> &b)
+{
+  double dx = a.first - b.first;
+  double dy = a.second - b.second;
+
+  return sqrt(dx * dx + dy * dy);
+}
+
+distance_t calcDistanceMap(const map_t &problem)
+{
+  distance_t dist;
+
+  for (int i = 0; i < problem.size(); ++i) {
+    vector<double> tmp;
+    const pair<double, double> &a = problem[i];
+    for (int j = 0; j < problem.size(); ++j) {
+
+      if (i == j) {
+        tmp.push_back(numeric_limits<double>::infinity());
+        continue;
+      }
+
+      const pair<double, double> &b = problem[j];
+      tmp.push_back(calcDistance(a, b));
+    }
+    dist.push_back(tmp);
+  }
+
+  return dist;
+}
+
+distance_t copyDistanceMap(distance_t d) {
+  distance_t dist;
+  for (int i = 0; i < d.size(); i++) {
+    vector<double> row = d[i];
+    dist.push_back(row);
+  }
+  return dist;
+}
+
+void solveLP(distance_t d)
+{
+  distance_t dist = copyDistanceMap(d);
+
+  int n_cols = dist.size() * dist[0].size();
+  double *objective = new double[n_cols];
+  double *col_lb = new double[n_cols];
+  double *col_ub = new double[n_cols];
+
+  // define the objective coefficients
+  // minimize Sum: d_ij x_ij
+  for (int i = 0; i < n_cols; i++) {
+    int row = n_cols / dist[0].size();
+    int col = i - row * dist[0].size();
+    objective[i] = dist[row][col]
+  }
+
+  // TODO: refactor
+  // define the variable lower/upper bounds
+  // 0 <= x_ij <= 1
+  for (int i = 0; i < n_cols; i++) {
+    col_lb[i] = 0;
+    col_ub[i] = 1;
+  }
+
+  // Constraint
+  // Sum: x_ij = 2
+}
+
 int
-main(int argc, 
+main(int argc,
      char* argv[])
 {
   // Create a problem pointer.  We use the base class here.
@@ -51,28 +127,30 @@ main(int argc,
 
   // When we instantiate the object, we need a specific derived class.
   si = new OsiClpSolverInterface;
-  
+
   if (argc < 2) {
     cout << "Usage: tsp_clp .tsp_file_path" << endl;
     return 1;
   }
-  
+
   string file_path(argv[1]);
-  // vector< pair<double, double> > coords = readTspFile(file_path);
-  // cout << coords.size() << endl;
+  map_t coords = readTspFile(file_path);
+  distance_t dist = calcDistanceMap(coords);
+  size_t V = coords.size();
+
 
   // Build our own instance from scratch
 
   /*
    * Traveling Salesman Problem
-   *  
+   *
    *  http://examples.gurobi.com/traveling-salesman-problem/
-   *  
+   *
    *  minimize Sum: d_ij * x_ij
    *  s.t       Sum: x_ij = 2
    *            Sum: x_ij < |S| - 1
    */
-  
+
   int n_cols = 2;
   double *objective    = new double[n_cols];//the objective coefficients
   double *col_lb       = new double[n_cols];//the column lower bounds
@@ -90,11 +168,11 @@ main(int argc,
   col_lb[1] = 0.0;
   col_ub[0] = si->getInfinity();
   col_ub[1] = si->getInfinity();
-     
+
   int n_rows = 2;
   double *row_lb = new double[n_rows]; //the row lower bounds
   double *row_ub = new double[n_rows]; //the row upper bounds
-     
+
   //Define the constraint matrix.
   CoinPackedMatrix *matrix =  new CoinPackedMatrix(false,0,0);
   matrix->setDimensions(0, n_cols);
@@ -121,14 +199,14 @@ main(int argc,
   //write the MPS file to a file called example.mps
   si->writeMps("example");
 
-  
+
 
   // Solve the (relaxation of the) problem
   si->initialSolve();
 
   // Check the solution
-  if ( si->isProvenOptimal() ) { 
-    std::cout << "Found optimal solution!" << std::endl; 
+  if ( si->isProvenOptimal() ) {
+    std::cout << "Found optimal solution!" << std::endl;
     std::cout << "Objective value is " << si->getObjValue() << std::endl;
 
     int n = si->getNumCols();
