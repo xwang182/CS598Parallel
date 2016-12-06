@@ -113,6 +113,7 @@ public:
   bool operator< (const Constraint &right) const;
   double* getRowLowerBound();
   double* getRowUpperBound();
+  double getParentCost();
   void addConstraint(double lb, double ub, CoinPackedVector vec);
   vector<CoinPackedVector> getPackedVectors();
 
@@ -131,12 +132,12 @@ Constraint::Constraint(double p) {
   parent_cost = p;
 }
 
-Constraint::Constraint(const Constraint &obj, double parent_cost)
+Constraint::Constraint(const Constraint &obj, double cost)
 {
   row_lb = obj.row_lb;
   row_ub = obj.row_ub;
   vecs = obj.vecs;
-  parent_cost = parent_cost;
+  parent_cost = cost;
 }
 
 bool Constraint::operator< (const Constraint &right) const
@@ -162,6 +163,8 @@ void Constraint::addConstraint(double lb, double ub, CoinPackedVector vec)
   row_ub.push_back(ub);
   vecs.push_back(vec);
 }
+
+double Constraint::getParentCost() { return parent_cost; }
 
 bool sortFunc(pair<double, int> v1, pair<double, int> v2)
 {
@@ -215,7 +218,7 @@ vector<size_t> findShortestPath(path_map_t graph) {
       }
     }
 
-    if (temp_path.size() <= path.size() || path.empty()) {
+    if (path.empty() || temp_path.size() < path.size()) {
       path = temp_path;
     }
   }
@@ -380,6 +383,7 @@ main(int argc,
 
         // find subtour
         if (path.size() == dist.size()) { // no subtour
+	  // cout << "no subtour " << vecs.size() << " " << cost << " " << constraint.getParentCost() <<  endl;
 	  // printPath(path);
 	  //if (best_cost == -1 || cost <= best_cost) {
 	    best_cost = cost;
@@ -388,7 +392,7 @@ main(int argc,
 	    final_path = path;
 	    //}
         } else {
-	  // cout << "subtour" << endl;
+	  // cout << "subtour " << vecs.size() << " " << cost << " " << constraint.getParentCost() << endl;
 	  // printPath(path);
 	  /*
 	  // cout << graph[0][26] << " " << graph[26][0] << endl;
@@ -401,20 +405,18 @@ main(int argc,
 	    cout << "" << endl;
 	  }*/
 
-
           Constraint new_constraint(constraint, cost); // new constraint
 
           CoinPackedVector vec;
           size_t path_size = path.size();
-	  //	  if (path_size == 2) continue; // path_size = 1;
           for (size_t i = 0; i < path_size; i++) {
             size_t row = path[i];
             size_t col = path[(i+1) % path_size];
-
+	    
             vec.insert(variable_map[row][col], 1.0);
           }
-
-          new_constraint.addConstraint(1.0, (double)(path_size - 1), vec);
+	  
+          new_constraint.addConstraint(-si->getInfinity(), (double)(path_size - 1), vec);
 
           constraints.insert(new_constraint);
         }
