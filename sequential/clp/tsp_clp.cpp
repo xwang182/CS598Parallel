@@ -368,19 +368,52 @@ main(int argc,
       int n = si->getNumCols();
       const double* solution = si->getColSolution();
 
+      int all_integers = true;
       for (int i = 0; i < n; i++) {
-        /*
         if (!(solution[i] == 1 || solution[i] == 0)) {
           all_integers = false;
           break;
         }
-        */
-        std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
+        // std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
+      }
+
+      double cost = calculateCost(objective, solution, int n);
+      if (best_cost == -1 || best_cost > cost) {
+        best_cost = cost;
+      }
+
+      if (all_integers) {
+        // subtour
+        // 1 component
+        //    compare to best_cost
+        // > 1 component
+        //    add subtour constraint
+      } else {
+        for (int i = 0; i < n; i++) {
+          if (solution[i] == 1 || solution[i] == 0) continue;
+          // branch and bound
+          // LEFT: 0
+          Constraint new_constraint_1(constraint); // new constraint
+          CoinPackedVector vec_1;
+          vec_1.insert(i, 1.0);
+          new_constraint_1.addConstraint(0.0, 0.0, vec_1);
+
+          // RIGHT: 1
+          Constraint new_constraint_2(constraint); // new constraint
+          CoinPackedVector vec_2;
+          vec_2.insert(i, 1.0);
+          new_constraint_1.addConstraint(1.0, 1.0, vec_1);
+
+          constraints.push_back(new_constraint_1);
+          constraints.push_back(new_constraint_2);
+        }
       }
     } else {
       // no optimal solution found...
     }
   }
+
+  cout << "Best Cost: " << best_cost << endl;
 
 
   // Build our own instance from scratch
