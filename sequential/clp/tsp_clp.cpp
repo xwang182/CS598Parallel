@@ -341,6 +341,9 @@ main(int argc,
   vector<Constraint> constraints;
   constraints.push_back(initial_constraint);
 
+  const double* final_solution;
+  int final_num_sols;
+
   int iter = 0;
   while (constraints.size() != 0) {
     cout << "\nIteration: " << (iter) << endl;
@@ -384,6 +387,8 @@ main(int argc,
       double cost = calculateCost(objective, solution, n);
       if (best_cost == -1 || best_cost > cost) {
         best_cost = cost;
+        final_solution = solution;
+        final_num_sols = n;
       } else { // prune
         continue;
       }
@@ -420,6 +425,10 @@ main(int argc,
   }
 
   cout << "Best Cost: " << best_cost << endl;
+  for (size_t i = 0; i < final_num_sols; i++) {
+    cout << i << ": " << final_solution[i] << endl;
+  }
+
 
 
   // Build our own instance from scratch
