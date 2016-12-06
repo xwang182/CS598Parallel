@@ -348,6 +348,7 @@ main(int argc,
           final_num_sols = n;
           final_path = path;
         } else {
+	  cout << "subtour" << endl;
           Constraint new_constraint(constraint, cost); // new constraint
 
           CoinPackedVector vec;
