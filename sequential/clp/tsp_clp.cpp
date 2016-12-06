@@ -361,7 +361,7 @@ main(int argc,
 
           new_constraint.addConstraint(0.0, (double)(path_size - 1), vec);
 
-          constraints.push_back(new_constraint);
+          constraints.insert(new_constraint);
         }
       } else {
         vector<pair<double, int>> non_integer_sols;
