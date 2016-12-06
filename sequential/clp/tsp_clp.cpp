@@ -62,10 +62,10 @@ distance_t calcDistanceMap(const map_t &problem)
 {
   distance_t dist;
 
-  for (int i = 0; i < problem.size(); ++i) {
+  for (size_t i = 0; i < problem.size(); ++i) {
     vector<double> tmp;
     const pair<double, double> &a = problem[i];
-    for (int j = 0; j < problem.size(); ++j) {
+    for (size_t j = 0; j < problem.size(); ++j) {
 
       if (i == j) {
         tmp.push_back(numeric_limits<double>::infinity());
@@ -81,6 +81,7 @@ distance_t calcDistanceMap(const map_t &problem)
   return dist;
 }
 
+/*
 distance_t copyDistanceMap(distance_t d) {
   distance_t dist;
   for (int i = 0; i < d.size(); i++) {
@@ -89,6 +90,7 @@ distance_t copyDistanceMap(distance_t d) {
   }
   return dist;
 }
+*/
 
 void solveLP(OsiSolverInterface *si, distance_t dist)
 {
@@ -105,7 +107,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
   // minimize Sum: d_ij x_ij
 
   int count = 0;
-  idx_map_t variable_map;
+  idx_map_t varialbe_map;
   /*
   for (int i = 0; i < dist.size(); i++) {
     vector<int> row;
@@ -121,12 +123,12 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
   }
   */
 
-  for (int i = 0; i < dist.size() - 1; i++) {
+  for (size_t i = 0; i < dist.size() - 1; i++) {
     vector<int> row;
     row.resize(dist.size());
     variable_map.push_back(row);
 
-    for (int j = dist.size() - 1 - i; j < dist.size(); j++) {
+    for (size_t j = dist.size() - 1 - i; j < dist.size(); j++) {
       objective[count] = dist[i][j];
 
       // set variable map
@@ -153,7 +155,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
 
   // define the constraint matrix
   CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
-  matrix->setDimen(0, n_cols);
+  matrix->setDimensions(0, n_cols);
 
   for (int i = 0; i < n_rows; i++) {
     CoinPackedVector vec;
@@ -169,7 +171,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
     matrix->appendRow(vec);
   }
 
-  si>loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
+  si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
 
   // Solve the (relaxation of the) problem
   si->initialSolve();
