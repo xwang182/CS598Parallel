@@ -236,7 +236,7 @@ vector<size_t> findShortestPath(path_map_t graph) {
       }
     }
     
-    if (temp_path.size() < path.size() || path.empty()) {
+    if (temp_path.size() <= path.size() || path.empty()) {
       path = temp_path;
     }
   }
@@ -440,22 +440,22 @@ main(int argc,
           constraints.insert(new_constraint);
         }
       } else {
-        // vector<pair<double, int>> non_integer_sols;
+        vector<pair<double, int>> non_integer_sols;
 
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
 	  // cout << solution[i] << endl;
-          // non_integer_sols.push_back(make_pair(solution[i], i));
-	  //  }
+          non_integer_sols.push_back(make_pair(solution[i], i));
+	}
 
 	// sort non_integer_sols so that by the order of i ~ 0.5
-	// std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
+	std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
 	
-        // for (size_t i = 0; i < non_integer_sols.size(); i++) {
+        for (size_t i = 0; i < non_integer_sols.size(); i++) {
 	  // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
 	  
-	  int offset = i;
-          // int offset = non_integer_sols[i].second;
+	  // int offset = i;
+          int offset = non_integer_sols[i].second;
           // branch and bound
           // LEFT: 0
           Constraint new_constraint_1(constraint, cost); // new constraint
