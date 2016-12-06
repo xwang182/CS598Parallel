@@ -326,7 +326,7 @@ main(int argc,
   }
 
   // initial constraints
-  Constraint initial_constraint();
+  Constraint initial_constraint;
   size_t n_rows = dist.size();
   for (size_t i = 0; i < n_rows; i++) {
     CoinPackedVector vec;
@@ -334,7 +334,7 @@ main(int argc,
       if (i == j) continue;
       vec.insert(variable_map[i][j], 1.0);
     }
-    initial_constraint.addConstraint(2, 2, vec);
+    initial_constraint.addConstraint(2.0, 2.0, vec);
   }
 
   // DFS
