@@ -363,7 +363,7 @@ main(int argc,
     for (size_t i = 0; i < vecs.size(); i++) {
       matrix->appendRow(vecs[i]);
     }
-    //    cout << "row_constraint: " << vecs.size() << endl;
+    cout << "row_constraint: " << vecs.size() << endl;
     //    cout << "n_cols: " << n_cols << endl;
 
     // Create a problem pointer.  We use the base class here.
