@@ -21,7 +21,7 @@ typedef vector< vector<int> > path_map_t;
 typedef path_map_t idx_map_t;
 typedef vector<int> path_t;
 
-static best_cost = -1;
+static double best_cost = -1;
 
 string itos(int i) {stringstream s; s << i; return s.str(); }
 
@@ -231,6 +231,7 @@ void solveLP(distance_t dist, int variable_offset, int variable_value)
   } else { // no solution
     return;
   }
+  return;
 }
 
 class Constraint
@@ -247,14 +248,14 @@ private:
   vector<double> row_lb;
   vector<double> row_ub;
   vector<CoinPackedVector> vecs;
-}
+};
 
 Constraint::Constraint() {}
 Constraint::Constraint(const Constraint &obj)
 {
-  row_lb = obj->row_lb;
-  row_ub = obj->row_ub;
-  vecs = obj->vecs;
+  row_lb = obj.row_lb;
+  row_ub = obj.row_ub;
+  vecs = obj.vecs;
 }
 double* Constraint::getRowLowerBound()
 {
@@ -327,13 +328,13 @@ main(int argc,
   // initial constraints
   Constraint initial_constraint();
   size_t n_rows = dist.size();
-  for (int i = 0; i < n_rows; i++) {
+  for (size_t i = 0; i < n_rows; i++) {
     CoinPackedVector vec;
-    for (int j = 0; j < n_rows; j++) {
+    for (size_t j = 0; j < n_rows; j++) {
       if (i == j) continue;
       vec.insert(variable_map[i][j], 1.0);
     }
-    initial_constraint.addConstraint(2, 2, vec)
+    initial_constraint.addConstraint(2, 2, vec);
   }
 
   // DFS
@@ -346,7 +347,7 @@ main(int argc,
 
     double *row_lb = constraint.getRowLowerBound();
     double *row_ub = constraint.getRowUpperBound();
-    vector<CoinPackedMatrix> vecs = constraint.getPackedVectors();
+    vector<CoinPackedVector> vecs = constraint.getPackedVectors();
 
     // define the constraint matrix
     CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
