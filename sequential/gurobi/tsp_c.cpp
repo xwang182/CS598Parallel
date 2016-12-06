@@ -146,7 +146,7 @@ vector< pair<double, double> > readTspFile(string file_path)
   int count = 0;
   bool foundEntry = false;
   while (getline(infile, line)) {
-    if (line[0] == '1') {
+    if (line[0] >= '0' && line[0] <= '9') {
       foundEntry = true;
     }
     if (foundEntry) { // begin to read data
