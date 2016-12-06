@@ -395,10 +395,6 @@ main(int argc,
         //    compare to best_cost
         // > 1 component
         //    add subtour constraint
-	
-	cout << "all integer" << endl;
-	exit(0);
-
 	if (best_cost == -1 || best_cost > cost) {
 	  best_cost = cost;
 	  final_solution = solution;
@@ -419,7 +415,10 @@ main(int argc,
           Constraint new_constraint_2(constraint); // new constraint
           CoinPackedVector vec_2;
           vec_2.insert(i, 1.0);
-          new_constraint_1.addConstraint(1.0, 1.0, vec_1);
+          new_constraint_2.addConstraint(1.0, 1.0, vec_2);
+
+	  //	  cout << new_constraint_1.getPackedVectors().size() << endl;
+	  //	  cout << new_constraint_2.getPackedVectors().size() << endl;
 
           constraints.push_back(new_constraint_1);
           constraints.push_back(new_constraint_2);
