@@ -168,6 +168,15 @@ bool sortFunc(pair<double, int> v1, pair<double, int> v2)
   return abs(v1.first - 0.5) < abs(v2.first - 0.5);
 }
 
+void printPath(vector<size_t> path)
+{
+  cout << "Path: ";
+  for (size_t i = 0; i < path.size(); i++) {
+    cout << path[i] << " ";
+  }
+  cout << "" <<endl;
+}
+
 int
 main(int argc,
      char* argv[])
@@ -238,6 +247,7 @@ main(int argc,
 
   const double* final_solution = NULL;
   int final_num_sols = -1;
+  vector<size_t> final_path;
 
   int iter = 0;
   while (!constraints.empty()) {
@@ -336,6 +346,7 @@ main(int argc,
           best_cost = cost;
           final_solution = solution;
           final_num_sols = n;
+          final_path = path;
         } else {
           Constraint new_constraint(constraint, cost); // new constraint
 
@@ -350,8 +361,7 @@ main(int argc,
 
           new_constraint.addConstraint(0.0, (double)(path_size - 1), vec);
 
-          // Assume I found shortest cycle
-          cout << "find subtour" << endl;
+          constraints.push_back(new_constraint);
         }
       } else {
         vector<pair<double, int>> non_integer_sols;
@@ -396,6 +406,9 @@ main(int argc,
   cout << "Best Cost: " << best_cost << endl;
   cout << "n_cols: " << n_cols << endl;
   cout << "final_num_sols: " << final_num_sols << endl;
+  if (final_solution) {
+    printPath(final_path);
+  }
   // for (size_t i = 0; i < final_num_sols; i++) {
     // cout << i << ": " << final_solution[i] << endl;
   // }
