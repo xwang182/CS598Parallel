@@ -325,8 +325,10 @@ main(int argc,
               break;
             }
           }
-          if (source == 0)
+          if (source == 0) {
+            path.pop_back(); // remove 0
             break;
+          }
         }
 
         // find subtour
@@ -335,6 +337,19 @@ main(int argc,
           final_solution = solution;
           final_num_sols = n;
         } else {
+          Constraint new_constraint(constraint, cost); // new constraint
+
+          CoinPackedVector vec;
+          size_t path_size = path.size();
+          for (size_t i = 0; i < path_size; i++) {
+            size_t row = path[i];
+            size_t col = path[(i+1)%path_size];
+
+            vec.insert(variable_map[row][col], 1.0)
+          }
+
+          new_constraint.addConstraint(0, path.size() - 1, vec)
+
           // Assume I found shortest cycle
           cout << "find subtour" << endl;
         }
