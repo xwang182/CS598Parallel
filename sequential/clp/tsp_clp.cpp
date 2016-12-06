@@ -341,8 +341,8 @@ main(int argc,
   vector<Constraint> constraints;
   constraints.push_back(initial_constraint);
 
-  const double* final_solution;
-  int final_num_sols;
+  const double* final_solution = NULL;
+  int final_num_sols = -1;
 
   int iter = 0;
   while (constraints.size() != 0) {
@@ -363,7 +363,8 @@ main(int argc,
     for (size_t i = 0; i < vecs.size(); i++) {
       matrix->appendRow(vecs[i]);
     }
-    cout << "row_constraint: " << vecs.size() << endl;
+    //    cout << "row_constraint: " << vecs.size() << endl;
+    //    cout << "n_cols: " << n_cols << endl;
 
     // Create a problem pointer.  We use the base class here.
     // When we instantiate the object, we need a specific derived class.
@@ -372,6 +373,7 @@ main(int argc,
     si->initialSolve();
     if (si->isProvenOptimal()) {
       int n = si->getNumCols();
+      // cout << "n: " << n << endl;
       const double* solution = si->getColSolution();
 
       int all_integers = true;
@@ -383,12 +385,9 @@ main(int argc,
         // std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
       }
 
+      
       double cost = calculateCost(objective, solution, n);
-      if (best_cost == -1 || best_cost > cost) {
-        best_cost = cost;
-      } else { // prune
-        continue;
-      }
+      if (best_cost != -1 && cost > best_cost) continue; // prune
 
       if (all_integers) {
         // subtour
@@ -396,10 +395,16 @@ main(int argc,
         //    compare to best_cost
         // > 1 component
         //    add subtour constraint
-        if (cost == best_cost) {
-          final_solution = solution;
+	
+	cout << "all integer" << endl;
+	exit(0);
+
+	if (best_cost == -1 || best_cost > cost) {
+	  best_cost = cost;
+	  final_solution = solution;
           final_num_sols = n;
-        }
+	}	
+	
       } else {
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
