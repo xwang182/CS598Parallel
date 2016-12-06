@@ -177,31 +177,10 @@ void printPath(vector<size_t> path)
   cout << "" <<endl;
 }
 
-vector<size_t> findPath(path_map_t graph, size_t source) {
-  
-  vector<size_t> path;
-  size_t original_source = source;
-  path.push_back(source);
-  while (true) {
-    for (size_t i = 0; i < graph.size(); i++) {
-      if (i != path[path.size() - 2] && graph[source][i]) {
-	path.push_back(i);
-	source = i;
-	break;
-      }
-    }
-    if (source == original_source) {
-      path.pop_back(); // remove 0
-      break;
-    }
-  }
-  return path;
-}
-
 vector<size_t> findShortestPath(path_map_t graph) {
-  vector<size_t> visited; 
+  vector<size_t> visited;
   visited.resize(graph.size());
-  
+
   vector<size_t> path;
 
   while(true) {
@@ -216,7 +195,7 @@ vector<size_t> findShortestPath(path_map_t graph) {
     }
     if (all_visited)
       break;
-    
+
     vector<size_t> temp_path;
     size_t original_source = source;
     temp_path.push_back(source);
@@ -235,7 +214,7 @@ vector<size_t> findShortestPath(path_map_t graph) {
 	break;
       }
     }
-    
+
     if (temp_path.size() <= path.size() || path.empty()) {
       path = temp_path;
     }
@@ -342,15 +321,15 @@ main(int argc,
     // Create a problem pointer.  We use the base class here.
     // When we instantiate the object, we need a specific derived class.
     OsiSolverInterface *si = new OsiClpSolverInterface;
-    
+
     // remove message level
     CoinMessageHandler *msg = si->messageHandler();
     msg->setLogLevel(0);
-    
+
     si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
     si->initialSolve();
 
-    
+
     if (si->isProvenOptimal()) {
       int n = si->getNumCols();
       // cout << "n: " << n << endl;
@@ -396,7 +375,7 @@ main(int argc,
             graph[j][i] = (int)(solution[variable_map[j][i]]);
           }
         }
-	
+
 	vector<size_t> path = findShortestPath(graph);
 
         // find subtour
@@ -411,9 +390,9 @@ main(int argc,
         } else {
 	  // cout << "subtour" << endl;
 	  // printPath(path);
-	  /*  
+	  /*
 	  // cout << graph[0][26] << " " << graph[26][0] << endl;
-	    
+
 	  for (size_t i = 0; i < dist.size(); i++) {
 	    cout << i << ": ";
 	    for (size_t j = 0; j < dist.size(); j++) {
@@ -421,10 +400,10 @@ main(int argc,
 	    }
 	    cout << "" << endl;
 	  }*/
-	  
-	  
+
+
           Constraint new_constraint(constraint, cost); // new constraint
-	  
+
           CoinPackedVector vec;
           size_t path_size = path.size();
 	  //	  if (path_size == 2) continue; // path_size = 1;
@@ -450,10 +429,10 @@ main(int argc,
 
 	// sort non_integer_sols so that by the order of i ~ 0.5
 	std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
-	
+
         for (size_t i = 0; i < non_integer_sols.size(); i++) {
 	  // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
-	  
+
 	  // int offset = i;
           int offset = non_integer_sols[i].second;
           // branch and bound
@@ -468,7 +447,7 @@ main(int argc,
           CoinPackedVector vec_2;
           vec_2.insert(offset, 1.0);
           new_constraint_2.addConstraint(1.0, 1.0, vec_2);
-	  
+
           //	  cout << new_constraint_1.getPackedVectors().size() << endl;
           //	  cout << new_constraint_2.getPackedVectors().size() << endl;
 
@@ -480,7 +459,7 @@ main(int argc,
       // no optimal solution found...
     }
   }
-  
+
   cout << "Iterations: " << iter << endl;
   cout << "Best Cost: " << best_cost << endl;
   // cout << "n_cols: " << n_cols << endl;
@@ -488,6 +467,6 @@ main(int argc,
   if (final_solution) {
     printPath(final_path);
   }
-  
+
   return 0;
 }
