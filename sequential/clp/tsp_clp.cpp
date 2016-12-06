@@ -92,8 +92,14 @@ distance_t copyDistanceMap(distance_t d) {
 }
 */
 
-void solveLP(OsiSolverInterface *si, distance_t dist)
+void solveLP(distance_t dist)
 {
+  // Create a problem pointer.  We use the base class here.
+  OsiSolverInterface *si;
+
+  // When we instantiate the object, we need a specific derived class.
+  si = new OsiClpSolverInterface;
+
   // distance_t dist = copyDistanceMap(d);
   size_t V = dist.size();
 
@@ -125,7 +131,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
   }
 
   for (size_t i = 0; i < dist.size() - 1; i++) {
-    for (size_t j = dist.size() - 1 - i; j < dist.size(); j++) {
+    for (size_t j = i + 1; j < dist.size(); j++) {
       objective[count] = dist[i][j];
 
       // set variable map
@@ -135,6 +141,14 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
       count++;
     }
   }
+  
+  /*
+  for (int i = 0; i < variable_map.size(); i++) {
+    for (int j = 0; j < variable_map[i].size(); j++) {
+      cout << i << " " << j << ": " << variable_map[i][j] << endl;
+    } 
+  }
+  */
 
   // TODO: refactor
   // define the variable lower/upper bounds
@@ -153,13 +167,14 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
   // define the constraint matrix
   CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
   matrix->setDimensions(0, n_cols);
-
+ 
   for (int i = 0; i < n_rows; i++) {
     CoinPackedVector vec;
-
+    
     for (int j = 0; j < n_rows; j++) {
       if (i == j) continue;
-      cerr << i << " " << j << ": " << variable_map[i][j] << endl;
+      //cerr << i << " " << j << ": " << endl;
+      //cerr << variable_map[i][j] << endl;
       vec.insert(variable_map[i][j], 1.0);
     }
 
@@ -168,6 +183,7 @@ void solveLP(OsiSolverInterface *si, distance_t dist)
     row_ub[i] = 2;
     matrix->appendRow(vec);
   }
+  
 
   si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
 
@@ -189,12 +205,6 @@ int
 main(int argc,
      char* argv[])
 {
-  // Create a problem pointer.  We use the base class here.
-  OsiSolverInterface *si;
-
-  // When we instantiate the object, we need a specific derived class.
-  si = new OsiClpSolverInterface;
-
   if (argc < 2) {
     cout << "Usage: tsp_clp .tsp_file_path" << endl;
     return 1;
@@ -203,7 +213,7 @@ main(int argc,
   string file_path(argv[1]);
   map_t coords = readTspFile(file_path);
   distance_t dist = calcDistanceMap(coords);
-  solveLP(si, dist);
+  solveLP(dist);
 
 
   // Build our own instance from scratch
