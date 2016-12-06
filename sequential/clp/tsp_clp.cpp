@@ -341,7 +341,11 @@ main(int argc,
   vector<Constraint> constraints;
   constraints.push_back(initial_constraint);
 
+  int iter = 0;
   while (constraints.size() != 0) {
+    cout << "\nIteration: " << (iter) << endl;
+    iter++;
+
     Constraint constraint = constraints.back();
     constraints.pop_back();
 
