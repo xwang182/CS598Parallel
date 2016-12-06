@@ -94,9 +94,9 @@ distance_t copyDistanceMap(distance_t d) {
 }
 */
 
-int calculateCost(double* objective, const double* solution, int num_sols)
+double calculateCost(double* objective, const double* solution, int num_sols)
 {
-  int cost = 0;
+  double cost = 0;
   for (int i = 0; i < num_sols; i++) {
     cost += objective[i] * solution[i];
   }
@@ -180,10 +180,10 @@ void solveLP(distance_t dist, int variable_offset, int variable_value)
   matrix->setDimensions(0, (int)n_cols);
 
 
-  for (int i = 0; i < n_rows; i++) {
+  for (size_t i = 0; i < n_rows; i++) {
     CoinPackedVector vec;
     // cout << "\n@ " << i << endl;
-    for (int j = 0; j < n_rows; j++) {
+    for (size_t j = 0; j < n_rows; j++) {
       if (i == j) continue;
       vec.insert(variable_map[i][j], 1.0);
       // cout << variable_map[i][j] << endl;
@@ -223,8 +223,8 @@ void solveLP(distance_t dist, int variable_offset, int variable_value)
       //    add subtour constraint
     } else {
       for (int i = 0; i < n; i++) {
-        if (solution[i] == 1 || solution[i] == 0) continue;
-        solveLP(dist);
+        // if (solution[i] == 1 || solution[i] == 0) continue;
+        // solveLP(dist);
       }
     }
 
@@ -233,11 +233,11 @@ void solveLP(distance_t dist, int variable_offset, int variable_value)
   }
 }
 
-class Contraint
+class Constraint
 {
 public:
   Constraint();
-  Constraint(const Contraint &obj);
+  Constraint(const Constraint &obj);
   double* getRowLowerBound();
   double* getRowUpperBound();
   void addConstraint(double lb, double ub, CoinPackedVector vec);
@@ -250,7 +250,7 @@ private:
 }
 
 Constraint::Constraint() {}
-Constraint::Constraint(const Contraint &obj)
+Constraint::Constraint(const Constraint &obj)
 {
   row_lb = obj->row_lb;
   row_ub = obj->row_ub;
