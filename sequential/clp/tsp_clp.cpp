@@ -348,7 +348,7 @@ main(int argc,
             vec.insert(variable_map[row][col], 1.0);
           }
 
-          new_constraint.addConstraint(0, path.size() - 1, vec);
+          new_constraint.addConstraint(0.0, (double)(path_size - 1), vec);
 
           // Assume I found shortest cycle
           cout << "find subtour" << endl;
