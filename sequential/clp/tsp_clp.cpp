@@ -384,6 +384,8 @@ main(int argc,
       double cost = calculateCost(objective, solution, n);
       if (best_cost == -1 || best_cost > cost) {
         best_cost = cost;
+      } else { // prune
+        continue;
       }
 
       if (all_integers) {
