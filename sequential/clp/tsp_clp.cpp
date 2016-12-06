@@ -367,7 +367,7 @@ main(int argc,
 
     // Create a problem pointer.  We use the base class here.
     // When we instantiate the object, we need a specific derived class.
-    OsiSolverInterface *si; = new OsiClpSolverInterface;
+    OsiSolverInterface *si = new OsiClpSolverInterface;
     si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
     si->initialSolve();
     if (si->isProvenOptimal()) {
