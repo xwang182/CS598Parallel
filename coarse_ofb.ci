@@ -1,0 +1,24 @@
+
+mainmodule coarse_ofb {
+  readonly CProxy_Master mainProxy;
+  readonly CProxy_Cache cacheProxy;
+  readonly map_t problem;
+  readonly distance_t dist;
+  readonly CkNodeGroupID cacheID;
+
+  mainchare Master {
+    entry Master(CkArgMsg* msg);
+    entry [expedited] void updateOFUB(double ofub, path_t path);
+    entry void done();
+  };
+
+  nodegroup Cache {
+    entry Cache(double ofub);
+    entry [expedited] void updateOFUB(double ofub);
+  }
+
+  array [1D] Slave {
+    entry Slave(path_t visited, path_t remained);
+
+  };
+};

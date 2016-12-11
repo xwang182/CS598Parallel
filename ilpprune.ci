@@ -1,0 +1,32 @@
+
+mainmodule ilpprune {
+  readonly CProxy_Master mainProxy;
+  readonly CProxy_Cache cacheProxy;
+  readonly map_t problem;
+  readonly distance_t dist;
+  readonly idx_map_t variable_map;
+  readonly double_vec_t objective_vec;
+  readonly double_vec_t col_lb_vec;
+  readonly double_vec_t col_ub_vec;
+  readonly constraint_vec_t base_constraint_vec;
+  readonly int n_cols;
+  readonly int cache_size;
+
+  mainchare Master {
+    entry Master(CkArgMsg* msg);
+    entry [reductiontarget] void groupCreated(CkReductionMsg *msg);
+    entry [expedited] void updateOFUB(double ofub, int size, const double solution[size]);
+    entry void done();
+  };
+
+  nodegroup Cache {
+    entry Cache(double ofub);
+    entry [expedited] void updateOFUB(double ofub);
+    entry [expedited] void addConstraint(set<constraint_t> constraints);
+  }
+
+  chare Slave {
+    entry Slave(double parent_cost, constraint_t constraints);
+
+  };
+};

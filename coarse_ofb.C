@@ -11,12 +11,13 @@ typedef vector< vector<double> > distance_t;
 typedef vector< vector<int> > path_map_t;
 typedef vector<int> path_t;
 
-#include "project.decl.h"
+#include "coarse_ofb.decl.h"
 
 /* readonly */ CProxy_Master mainProxy;
 /* readonly */ CProxy_Cache cacheProxy;
 /* readonly */ map_t problem;
 /* readonly */ distance_t dist;
+/* readonly */ CkNodeGroupID cacheID;
 
 class Master : public CBase_Master {
 private:
@@ -28,6 +29,7 @@ private:
 public:
 
   Master(CkArgMsg* msg) {
+
     if(msg->argc < 2){
 
       CkPrintf("Usage: %s tsp_file", msg->argv[0]);
@@ -50,7 +52,7 @@ public:
     mainProxy = thisProxy;
     cacheProxy = CProxy_Cache::ckNew(ofub_);
 
-    CkNodeGroupID cacheID(cacheProxy);
+    cacheID = cacheProxy;
     CkEntryOptions opts;
     opts.setGroupDepID(cacheID);
 
@@ -59,7 +61,7 @@ public:
     for (int i = 1; i < problem.size(); ++i) {
       remained.push_back(i);
     }
-    root_ = CProxy_Slave::ckNew(visited, remained, problem.size() - 1, &opts);
+    root_ = CProxy_Slave::ckNew(visited, remained, 1, &opts);
 
     oflb_ = calcOFLB();
     CkPrintf("OFLB: %lf\n", oflb_);
@@ -180,7 +182,7 @@ public:
   void updateOFUB(double ofub) {
     CmiLock(lock_);
     ofub_ = ofub;
-    CkPrintf("Local OFUB updated to %lf\n", ofub);
+    //CkPrintf("Local OFUB updated to %lf\n", ofub);
     CmiUnlock(lock_);
   }
 
@@ -199,7 +201,7 @@ public:
       ofub_ = ctp;
       thisProxy.updateOFUB(ctp);
       mainProxy.updateOFUB(ctp, path);
-      CkPrintf("Local OFUB updated to %lf\n", ctp);
+      //CkPrintf("Local OFUB updated to %lf\n", ctp);
     }
     CmiUnlock(lock_);
   }
@@ -208,7 +210,6 @@ public:
 
 class Slave : public CBase_Slave {
 private:
-  Slave_SDAG_CODE
 
   CProxy_Slave children_;
   path_map_t path_;
@@ -236,31 +237,44 @@ public:
       last_city = y;
     }
 
-    int cur_city = remained[thisIndex];
-    path_[last_city].push_back(cur_city);
-    path_[cur_city].push_back(last_city);
+    for (int i = 0; i < remained.size(); ++i) {
 
-    cp_ = calcCP(path_);
+      int cur_city = remained[i];
+      path_[last_city].push_back(cur_city);
+      path_[cur_city].push_back(last_city);
 
-    Cache *cache = cacheProxy.ckLocalBranch();
+      cp_ = calcCP(path_);
 
-    visited.push_back(cur_city);
-    if (visited.size() < problem.size()) {
-      bool pass = cache->checkCPP(cp_);
+      path_[last_city].pop_back();
+      path_[cur_city].pop_back();
 
-      if (pass) {
+      Cache *cache = cacheProxy.ckLocalBranch();
 
-        //CkPrintf("Visited %d cities, CPP is %lf, branching...\n", visited.size(), cp_);
+      visited.push_back(cur_city);
+      if (visited.size() < problem.size()) {
+        bool pass = cache->checkCPP(cp_);
 
-        remained.erase(remained.begin() + thisIndex);
-        children_ = CProxy_Slave::ckNew(visited, remained, remained.size());
+        if (pass) {
 
+          //CkPrintf("Visited %d cities, CPP is %lf, branching...\n", visited.size(), cp_);
+
+          remained.erase(remained.begin() + i);
+
+
+          CkEntryOptions opts;
+          opts.setGroupDepID(cacheID);
+          children_ = CProxy_Slave::ckNew(visited, remained, 1, &opts);
+
+          remained.insert(remained.begin() + i, cur_city);
+
+        } else {
+          //CkPrintf("Visited %d cities, CPP is %lf, terminated!\n", visited.size(), cp_);
+        }
       } else {
-        //CkPrintf("Visited %d cities, CPP is %lf, terminated!\n", visited.size(), cp_);
+        cache->sendCTP(cp_, visited);
+        //CkPrintf("CP is %lf\n", cp_);
       }
-    } else {
-      cache->sendCTP(cp_, visited);
-      CkPrintf("CP is %lf\n", cp_);
+      visited.pop_back();
     }
 
 
@@ -294,4 +308,4 @@ private:
 };
 
 
-#include "project.def.h"
+#include "coarse_ofb.def.h"
