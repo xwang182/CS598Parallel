@@ -84,17 +84,6 @@ distance_t calcDistanceMap(const map_t &problem)
   return dist;
 }
 
-/*
-distance_t copyDistanceMap(distance_t d) {
-  distance_t dist;
-  for (int i = 0; i < d.size(); i++) {
-    vector<double> row = d[i];
-    dist.push_back(row);
-  }
-  return dist;
-}
-*/
-
 double calculateCost(double* objective, const double* solution, int num_sols)
 {
   double cost = 0;
@@ -104,6 +93,7 @@ double calculateCost(double* objective, const double* solution, int num_sols)
   return cost;
 }
 
+static int COUNTER = 0;
 class Constraint
 {
 public:
@@ -113,6 +103,7 @@ public:
   bool operator< (const Constraint &right) const;
   double* getRowLowerBound();
   double* getRowUpperBound();
+  double getParentCost();
   void addConstraint(double lb, double ub, CoinPackedVector vec);
   vector<CoinPackedVector> getPackedVectors();
 
@@ -121,26 +112,36 @@ private:
   vector<double> row_ub;
   vector<CoinPackedVector> vecs;
   double parent_cost;
+  int counter;
 };
 
 Constraint::Constraint() {
   parent_cost = 0;
+  this->counter = COUNTER;
+  COUNTER++;
 }
 
 Constraint::Constraint(double p) {
   parent_cost = p;
+  this->counter = COUNTER;
+  COUNTER++;
 }
 
-Constraint::Constraint(const Constraint &obj, double parent_cost)
+Constraint::Constraint(const Constraint &obj, double cost)
 {
   row_lb = obj.row_lb;
   row_ub = obj.row_ub;
   vecs = obj.vecs;
-  parent_cost = parent_cost;
+  parent_cost = cost;
+  this->counter = COUNTER;
+  COUNTER++;
 }
 
 bool Constraint::operator< (const Constraint &right) const
 {
+  if (parent_cost == right.parent_cost){
+    return counter < right.counter;
+  }
   return parent_cost < right.parent_cost;
 }
 
@@ -162,6 +163,8 @@ void Constraint::addConstraint(double lb, double ub, CoinPackedVector vec)
   row_ub.push_back(ub);
   vecs.push_back(vec);
 }
+
+double Constraint::getParentCost() { return parent_cost; }
 
 bool sortFunc(pair<double, int> v1, pair<double, int> v2)
 {
@@ -215,7 +218,7 @@ vector<size_t> findShortestPath(path_map_t graph) {
       }
     }
 
-    if (temp_path.size() <= path.size() || path.empty()) {
+    if (path.empty() || temp_path.size() <= path.size()) {
       path = temp_path;
     }
   }
@@ -251,11 +254,11 @@ main(int argc,
     vector<int> row;
     /*for (size_t j = 0; j < dist.size(); j++) {
       row.push_back(-1);
-    }*/
+      }*/
     row.resize(dist.size());
     variable_map.push_back(row);
   }
-
+  
   for (size_t i = 0; i < dist.size() - 1; i++) {
     for (size_t j = i + 1; j < dist.size(); j++) {
       objective[count] = dist[i][j];
@@ -291,33 +294,38 @@ main(int argc,
   set<Constraint> constraints;
   constraints.insert(initial_constraint);
 
+  //vector<Constraint> constraints;
+  //constraints.push_back(initial_constraint);
+
   const double* final_solution = NULL;
   int final_num_sols = -1;
   vector<size_t> final_path;
 
   int iter = 0;
   while (!constraints.empty()) {
-    // cout << "Iteration: " << (iter) << endl;
+    // cout << "Iteration: " << (iter) << " " << constraints.size() << endl;
     iter++;
-
+    
     Constraint constraint = *(constraints.begin());
     constraints.erase(constraints.begin());
-    // constraints.pop_back();
-
+    
+    //Constraint constraint = constraints.back();
+    //constraints.pop_back();
+    
     double *row_lb = constraint.getRowLowerBound();
     double *row_ub = constraint.getRowUpperBound();
     vector<CoinPackedVector> vecs = constraint.getPackedVectors();
-
+    
     // define the constraint matrix
     CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
     matrix->setDimensions(0, (int)n_cols);
-
+    
     for (size_t i = 0; i < vecs.size(); i++) {
       matrix->appendRow(vecs[i]);
     }
     //    cout << "row_constraint: " << vecs.size() << endl;
     //    cout << "n_cols: " << n_cols << endl;
-
+    
     // Create a problem pointer.  We use the base class here.
     // When we instantiate the object, we need a specific derived class.
     OsiSolverInterface *si = new OsiClpSolverInterface;
@@ -325,16 +333,15 @@ main(int argc,
     // remove message level
     CoinMessageHandler *msg = si->messageHandler();
     msg->setLogLevel(0);
-
+    
     si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
     si->initialSolve();
-
-
+    
     if (si->isProvenOptimal()) {
       int n = si->getNumCols();
       // cout << "n: " << n << endl;
       const double* solution = si->getColSolution();
-
+      
       int all_integers = true;
       for (int i = 0; i < n; i++) {
         if (!(solution[i] == 1 || solution[i] == 0)) {
@@ -343,31 +350,25 @@ main(int argc,
         }
         // std::cout << si->getColName(i) << " = " << solution[i] << std::endl;
       }
-
-
+      
+      
       double cost = si->getObjValue(); // calculateCost(objective, solution, n)
       if (best_cost != -1 && cost > best_cost) continue; // prune
-
+      
       if (all_integers) {
         // subtour
         // 1 component
         //    compare to best_cost
         // > 1 component
         //    add subtour constraint
-        /*
-      	if (best_cost == -1 || best_cost > cost) {
-      	  best_cost = cost;
-      	  final_solution = solution;
-          final_num_sols = n;
-      	}*/
-
+ 	
         path_map_t graph; // adjacency matrix
         for (size_t i = 0; i < dist.size(); i++) {
           vector<int> row;
           row.resize(dist.size());
           graph.push_back(row);
         }
-
+	
         // set up graph
         for (size_t i = 0; i < dist.size() - 1; i++) {
           for (size_t j = i + 1; j < dist.size(); j++) {
@@ -377,62 +378,61 @@ main(int argc,
         }
 
 	vector<size_t> path = findShortestPath(graph);
-
+	
         // find subtour
         if (path.size() == dist.size()) { // no subtour
+	  // cout << "no subtour " << vecs.size() << " " << cost << " " << constraint.getParentCost() <<  endl;
 	  // printPath(path);
 	  //if (best_cost == -1 || cost <= best_cost) {
-	    best_cost = cost;
-	    final_solution = solution;
-	    final_num_sols = n;
-	    final_path = path;
-	    //}
+	  best_cost = cost;
+	  final_solution = solution;
+	  final_num_sols = n;
+	  final_path = path;
+	  //}
         } else {
-	  // cout << "subtour" << endl;
+	  // cout << "subtour " << vecs.size() << " " << cost << " " << constraint.getParentCost() << endl;
 	  // printPath(path);
 	  /*
 	  // cout << graph[0][26] << " " << graph[26][0] << endl;
-
+	  
 	  for (size_t i = 0; i < dist.size(); i++) {
-	    cout << i << ": ";
+	  cout << i << ": ";
 	    for (size_t j = 0; j < dist.size(); j++) {
-	      cout << graph[i][j] << " ";
+	    cout << graph[i][j] << " ";
 	    }
 	    cout << "" << endl;
-	  }*/
-
-
+	    }*/
+	  
           Constraint new_constraint(constraint, cost); // new constraint
-
+	  
           CoinPackedVector vec;
           size_t path_size = path.size();
-	  //	  if (path_size == 2) continue; // path_size = 1;
           for (size_t i = 0; i < path_size; i++) {
             size_t row = path[i];
             size_t col = path[(i+1) % path_size];
-
+	    
             vec.insert(variable_map[row][col], 1.0);
           }
-
-          new_constraint.addConstraint(1.0, (double)(path_size - 1), vec);
+	  
+          new_constraint.addConstraint(-si->getInfinity(), (double)(path_size - 1), vec);
 
           constraints.insert(new_constraint);
+	  // constraints.push_back(new_constraint);
         }
       } else {
         vector<pair<double, int>> non_integer_sols;
-
+	
         for (int i = 0; i < n; i++) {
           if (solution[i] == 1 || solution[i] == 0) continue;
-	  // cout << solution[i] << endl;
           non_integer_sols.push_back(make_pair(solution[i], i));
 	}
-
+	
 	// sort non_integer_sols so that by the order of i ~ 0.5
 	std::sort(non_integer_sols.begin(), non_integer_sols.end(), sortFunc);
-
+	
         for (size_t i = 0; i < non_integer_sols.size(); i++) {
 	  // cout << non_integer_sols[i].first << " " << non_integer_sols[i].second << endl;
-
+	  
 	  // int offset = i;
           int offset = non_integer_sols[i].second;
           // branch and bound
@@ -447,19 +447,23 @@ main(int argc,
           CoinPackedVector vec_2;
           vec_2.insert(offset, 1.0);
           new_constraint_2.addConstraint(1.0, 1.0, vec_2);
-
+	  
           //	  cout << new_constraint_1.getPackedVectors().size() << endl;
           //	  cout << new_constraint_2.getPackedVectors().size() << endl;
-
+	  
           constraints.insert(new_constraint_1);
           constraints.insert(new_constraint_2);
+	  // cout << constraints.size() << endl;
+	  // constraints.push_back(new_constraint_1);
+	  // constraints.push_back(new_constraint_2);
         }
+	// cout << constraints.size() << endl;
       }
     } else {
       // no optimal solution found...
     }
   }
-
+  
   cout << "Iterations: " << iter << endl;
   cout << "Best Cost: " << best_cost << endl;
   // cout << "n_cols: " << n_cols << endl;
