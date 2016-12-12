@@ -17,12 +17,14 @@ mainmodule ilpprune {
     entry [reductiontarget] void groupCreated(CkReductionMsg *msg);
     entry [expedited] void updateOFUB(double ofub, int size, const double solution[size]);
     entry void done();
+    entry [reductiontarget] void getStat(CkReductionMsg *msg);
   };
 
   nodegroup Cache {
     entry Cache(double ofub);
-    entry [expedited] void updateOFUB(double ofub);
+    entry [expedited] void updateOFUB(double ofub, constraint_set_t constraints);
     entry [expedited] void addConstraint(set<constraint_t> constraints);
+    entry void reportStat();
   }
 
   chare Slave {

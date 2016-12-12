@@ -118,7 +118,7 @@ public:
     problem = readTspFile(msg->argv[1], city_limit);
     dist = calcDistanceMap(problem);
 
-    CkPrintf("Number of city: %d\n", problem.size());
+    CkPrintf("Number of city: %d Cache size: %d\n", problem.size(), cache_size);
 
     n_cols = problem.size() * (problem.size() - 1) / 2;
     sol_ = new double[n_cols];
@@ -166,13 +166,25 @@ public:
   Master(CkMigrateMessage* msg){}
 
   void groupCreated(CkReductionMsg *msg) {
-
-    /*SlaveMessage *root_msg = new (0, 0, 8 * sizeof(int)) SlaveMessage(0, 0.0);
-    * (int *) CkPriorityPtr(root_msg) = 0;
-    CkSetQueueing(root_msg, CK_QUEUEING_ILIFO);
-
-    CProxy_Slave::ckNew(root_msg, 1);*/
     CProxy_Slave::ckNew(0.0, constraint_t());
+  }
+
+  void getStat(CkReductionMsg *msg) {
+
+    int size;
+    CkReduction::tupleElement* results;
+
+    msg->toTuple(&results, &size);
+    int finished_cut_cnt  = * (int *) results[0].data;
+    int known_cut_cnt = * (int *) results[1].data;
+    int cost_cut_cnt = * (int *) results[2].data;
+
+    CkPrintf("# cut by seeing a finished constraint: %d\n", finished_cut_cnt);
+    CkPrintf("# cut by seeing a known constraint: %d\n", known_cut_cnt);
+    CkPrintf("# cut by dropping cost higher than the bound: %d\n", cost_cut_cnt);
+
+
+    CkExit();
   }
 
   void updateOFUB(double ofub, int size, const double *solution) {
@@ -191,7 +203,7 @@ public:
   void done() {
     CkPrintf("Final CP: %lf\n", ofub_);
     CkPrintf("Time: %lfs\n", CkTimer());
-    CkExit();
+    cacheProxy.reportStat();
   }
 
 private:
@@ -260,6 +272,10 @@ private:
   double ofub_;
   set<constraint_t> known_constraints_;
   set<constraint_t> cached_constraints_;
+  set<constraint_set_t> finished_constraints_;
+  int finished_cut_cnt_;
+  int known_cut_cnt_;
+  int cost_cut_cnt_;
 
 public:
   Cache(double ofub) {
@@ -267,7 +283,13 @@ public:
     constraint_lock_ = CmiCreateLock();
     CmiLock(ofub_lock_);
     ofub_ = ofub;
+    cost_cut_cnt_ = 0;
     CmiUnlock(ofub_lock_);
+
+    CmiLock(constraint_lock_);
+    finished_cut_cnt_ = 0;
+    known_cut_cnt_ = 0;
+    CmiUnlock(constraint_lock_);
 
     contribute(0, NULL, CkReduction::nop,
       CkCallback(CkReductionTarget(Master, groupCreated), mainProxy)
@@ -279,27 +301,33 @@ public:
     CmiDestroyLock(constraint_lock_);
   }
 
-  void updateOFUB(double ofub) {
+  void updateOFUB(double ofub, constraint_set_t constraints) {
     CmiLock(ofub_lock_);
     ofub_ = ofub;
-    //CkPrintf("Local OFUB updated to %lf\n", ofub);
     CmiUnlock(ofub_lock_);
+    CmiLock(constraint_lock_);
+    finished_constraints_.insert(constraints);
+    CmiUnlock(constraint_lock_);
   }
 
   bool checkCPP(double cpp) {
     bool ret;
     CmiLock(ofub_lock_);
-    ret = cpp < ofub_ ? true : false;
+    ret = true;
+    if (cpp >= ofub_) {
+      ret = false;
+      cost_cut_cnt_++;
+    }
     CmiUnlock(ofub_lock_);
 
     return ret;
   }
 
-  void sendCTP(double ctp, int size, const double *solution) {
+  void sendCTP(double ctp, int size, const double *solution, const constraint_set_t &constraints) {
     CmiLock(ofub_lock_);
     if (ctp < ofub_) {
       ofub_ = ctp;
-      thisProxy.updateOFUB(ctp);
+      thisProxy.updateOFUB(ctp, constraints);
       mainProxy.updateOFUB(ctp, size, solution);
       //CkPrintf("Local OFUB updated to %lf\n", ctp);
     }
@@ -313,13 +341,20 @@ public:
   }
 
   bool addConstraint(const constraint_t &constraints) {
-    CmiLock(constraint_lock_); 
+    CmiLock(constraint_lock_);
+    if (finished_constraints_.find(constraints.first) != finished_constraints_.end()) {
+      finished_cut_cnt_++;
+      CmiUnlock(constraint_lock_);
+      return false;
+    }
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
       CmiUnlock(constraint_lock_);
+      known_cut_cnt_++;
       return false;
     }
     if (cached_constraints_.insert(constraints).second == false) {
       CmiUnlock(constraint_lock_);
+      known_cut_cnt_++;
       return false;
     }
     if (cached_constraints_.size() >= cache_size) {
@@ -331,17 +366,41 @@ public:
   }
 
   bool testConstraint(const constraint_t &constraints) {
-      CmiLock(constraint_lock_); 
+    CmiLock(constraint_lock_);
+    if (finished_constraints_.find(constraints.first) != finished_constraints_.end()) {
+      finished_cut_cnt_++;
+      CmiUnlock(constraint_lock_);
+      return false;
+    }
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
+      known_cut_cnt_++;
       CmiUnlock(constraint_lock_);
       return false;
     }
     if (cached_constraints_.find(constraints) != cached_constraints_.end()) {
+      known_cut_cnt_++;
       CmiUnlock(constraint_lock_);
       return false;
     }
     CmiUnlock(constraint_lock_);
     return true;
+  }
+
+  void reportStat() {
+
+    CkReduction::tupleElement tuple_red_n[] = {
+      CkReduction::tupleElement(sizeof(int), &finished_cut_cnt_, CkReduction::sum_int),
+      CkReduction::tupleElement(sizeof(int), &known_cut_cnt_, CkReduction::sum_int),
+      CkReduction::tupleElement(sizeof(int), &cost_cut_cnt_, CkReduction::sum_int)
+    };
+
+    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 3);
+
+    CkCallback cb(CkReductionTarget(Master, getStat), mainProxy);
+
+    msg->setCallback(cb);
+
+    contribute(msg);
   }
 };
 
@@ -358,6 +417,7 @@ public:
 
     Cache *cache = cacheProxy.ckLocalBranch();
     if (!cache->checkCPP(parent_cost)) {
+      //cacheProxy.addFinishedConstraint(constraint_set);
       return;
     }
 
@@ -486,7 +546,7 @@ public:
               CkPrintf("%d=%d ", i->first, (int) i->second);
             }
             CkPrintf("#subtour_constraint = %d\n", subtour_set.size());
-            cache->sendCTP(cost, n, solution);
+            cache->sendCTP(cost, n, solution, constraint_set);
           } else {
             //CkPrintf("Add subtour %d constraints\n", subtour_vec.size() + 1);
             subtour_set.insert(path);
@@ -502,6 +562,7 @@ public:
         }
 
       } else {
+        //cacheProxy.addFinishedConstraint(constraint_set);
         //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
       }
     }
