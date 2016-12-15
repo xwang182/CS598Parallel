@@ -114,6 +114,8 @@ Row::Row(double l, double u)
 {
   lb = l;
   ub = u;
+  counter = ROW_COUNTER;
+  ROW_COUNTER++;
 }
 
 Row::Row(double l, double u, var_coeff_set_t c)
@@ -125,33 +127,33 @@ Row::Row(double l, double u, var_coeff_set_t c)
   ROW_COUNTER++;
 }
 
-bool ROW::operator< (const Row &right) const
+bool Row::operator< (const Row &right) const
 {
   return counter < right.counter;
 }
-bool ROW::operator== (const Row &right) const
+bool Row::operator== (const Row &right) const
 {
   return (counter == right.counter) || (lb == right.lb && ub == right.ub && var_coeffs == right.var_coeffs);
 }
-void ROW::addVarCoeff(int idx, double coeff)
+void Row::addVarCoeff(int idx, double coeff)
 {
   var_coeffs.insert(pair<int, double>(idx, coeff));
 }
 
-double ROW::getLowerBound()
+double Row::getLowerBound()
 {
   return lb;
 }
-double ROW::getUpperBound()
+double Row::getUpperBound()
 {
   return ub;
 }
-CoinPackedVector ROW::getPackedVector()
+CoinPackedVector Row::getPackedVector()
 {
   CoinPackedVector vec;
   for (auto p : var_coeffs) {
-    int idx = p.first();
-    int coeff = p.second();
+    int idx = p.first;
+    double coeff = p.second;
     vec.insert(idx, coeff);
   }
   return vec;
@@ -260,7 +262,6 @@ bool sortFunc(pair<double, int> v1, pair<double, int> v2)
 
 void printPath(vector<size_t> path)
 {
-  cout << "Path: ";
   for (size_t i = 0; i < path.size(); i++) {
     cout << path[i] << " ";
   }
@@ -460,8 +461,8 @@ main(int argc,
         } else {
           Constraint new_constraint(constraint, cost); // new constraint
 
+	  size_t path_size = path.size();	    
           Row row(-si->getInfinity(), (double)(path_size - 1));
-          size_t path_size = path.size();
           for (size_t i = 0; i < path_size; i++) {
             size_t x = path[i];
             size_t y = path[(i+1) % path_size];
@@ -487,15 +488,15 @@ main(int argc,
           // branch and bound
           // LEFT: 0
           Constraint new_constraint_1(constraint, cost); // new constraint
-          Row row_1;
+          Row row_1(0.0, 0.0);
           row_1.addVarCoeff(offset, 1.0);
-          new_constraint_1.addRow(0.0, 0.0, row_1);
+          new_constraint_1.addRow(row_1);
 
           // RIGHT: 1
           Constraint new_constraint_2(constraint, cost); // new constraint
-          Row row_2;
+          Row row_2(1.0, 1.0);
           row_2.addVarCoeff(offset, 1.0);
-          new_constraint_2.addRow(1.0, 1.0, row_2);
+          new_constraint_2.addRow(row_2);
 
           constraints.insert(new_constraint_1);
           constraints.insert(new_constraint_2);
