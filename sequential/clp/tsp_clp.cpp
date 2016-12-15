@@ -21,6 +21,15 @@ typedef vector< pair<double, double> > map_t;
 typedef vector< vector<double> > distance_t;
 typedef vector< vector<int> > path_map_t;
 typedef set< pair<int, double> > var_coeff_set_t;
+
+// lower bound, upper bound, variable coeffs
+typedef pair< pair<double, double>, var_coeff_set_t > row_t;
+typedef pair< pair<double*, double*>, vector<CoinPackedVector> > rows_result_t;
+
+// constraint
+//       parent cost,   rows
+typedef pair< double, set< row_t > > constraint_t;
+
 typedef path_map_t idx_map_t;
 typedef vector<int> path_t;
 
@@ -92,170 +101,57 @@ double calculateCost(double* objective, const double* solution, int num_sols)
   return cost;
 }
 
-static int ROW_COUNTER = 0;
-class Row
-{
-public:
-  Row(double lb, double ub);
-  Row(double lb, double ub, var_coeff_set_t var_coeffs);
-  bool operator< (const Row &right) const;
-  bool operator== (const Row &right) const;
-  void addVarCoeff(int idx, double coeff);
-  double getLowerBound();
-  double getUpperBound();
-  CoinPackedVector getPackedVector();
-  int counter;
-private:
-  // int counter;
-  double lb;
-  double ub;
-  var_coeff_set_t var_coeffs;
-};
-
-Row::Row(double l, double u)
-{
-  lb = l;
-  ub = u;
-  counter = ROW_COUNTER;
-  ROW_COUNTER++;
-}
-
-Row::Row(double l, double u, var_coeff_set_t c)
-{
-  lb = l;
-  ub = u;
-  var_coeffs = c;
-  counter = ROW_COUNTER;
-  ROW_COUNTER++;
-}
-
-bool Row::operator< (const Row &right) const
-{
-  return counter < right.counter;
-}
-bool Row::operator== (const Row &right) const
-{
-  return (counter == right.counter) || (lb == right.lb && ub == right.ub && var_coeffs == right.var_coeffs);
-}
-void Row::addVarCoeff(int idx, double coeff)
+void addVarCoeff(var_coeff_set_t &var_coeffs, int idx, double coeff)
 {
   var_coeffs.insert(pair<int, double>(idx, coeff));
 }
 
-double Row::getLowerBound()
+
+constraint_t constraint_new(double parent_cost)
 {
-  return lb;
-}
-double Row::getUpperBound()
-{
-  return ub;
-}
-CoinPackedVector Row::getPackedVector()
-{
-  CoinPackedVector vec;
-  for (auto p : var_coeffs) {
-    int idx = p.first;
-    double coeff = p.second;
-    vec.insert(idx, coeff);
-  }
-  return vec;
+  return constraint_t(parent_cost, set< row_t >());
 }
 
-static int COUNTER = 0;
-class Constraint
+constraint_t constraint_new(constraint_t constraint, double parent_cost)
 {
-public:
-  Constraint();
-  Constraint(double p);
-  Constraint(const Constraint &obj, double cost);
-  bool operator< (const Constraint &right) const;
-  bool operator== (const Constraint &right) const;
-  double* getRowLowerBound();
-  double* getRowUpperBound();
-  vector<CoinPackedVector> getPackedVectors();
-  double getParentCost();
-  void addRow(Row row);
-  void calculateRowsInfo();
-  int counter;
+  return constraint_t(parent_cost, constraint.second);
+}
 
-private:
-  set< Row > rows;
-  double parent_cost;
-  // int counter;
 
-  vector<CoinPackedVector> vecs;
+void constraint_addRow(constraint_t &constraint, double lb, double ub, var_coeff_set_t var_coeffs)
+{
+  row_t row(pair<double, double>(lb, ub), var_coeffs);
+  constraint.second.insert(row);
+}
+
+rows_result_t constraint_getRowsResult(constraint_t &constraint)
+{
   vector<double> row_lb;
   vector<double> row_ub;
-};
-
-Constraint::Constraint() {
-  parent_cost = 0;
-  this->counter = COUNTER;
-  COUNTER++;
-}
-
-Constraint::Constraint(double p) {
-  parent_cost = p;
-  this->counter = COUNTER;
-  COUNTER++;
-}
-
-Constraint::Constraint(const Constraint &obj, double cost)
-{
-  rows = obj.rows;
-  parent_cost = cost;
-  this->counter = COUNTER;
-  COUNTER++;
-}
-
-bool Constraint::operator< (const Constraint &right) const
-{
-  if (parent_cost == right.parent_cost){
-    return counter < right.counter;
-  }
-  return parent_cost < right.parent_cost;
-}
-
-bool Constraint::operator== (const Constraint &right) const
-{
-  if (counter == right.counter) return true;
-  if (rows == right.rows) return true;
-  return false;
-}
-
-double* Constraint::getRowLowerBound()
-{
-  return (double*)(&row_lb[0]);
-}
-double* Constraint::getRowUpperBound()
-{
-  return (double*)(&row_ub[0]);
-}
-vector<CoinPackedVector> Constraint::getPackedVectors()
-{
-  return vecs;
-}
-void Constraint::addRow(Row row)
-{
-  rows.insert(row);
-}
-
-double Constraint::getParentCost() { return parent_cost; }
-
-void Constraint::calculateRowsInfo()
-{
-  for (auto row : rows)
-  {
-    double lb = row.getLowerBound();
-    double ub = row.getUpperBound();
-    CoinPackedVector vec = row.getPackedVector();
+  vector<CoinPackedVector> vecs;
+  set< row_t > rows = constraint.second;
+  for (auto row : rows) {
+    double lb = row.first.first;
+    double ub = row.first.second;
+    var_coeff_set_t var_coeffs = row.second;
 
     row_lb.push_back(lb);
     row_ub.push_back(ub);
+
+    CoinPackedVector vec;
+    for (auto p : var_coeffs) {
+      int idx = p.first;
+      double coeff = p.second;
+      vec.insert(idx, coeff);
+    }
     vecs.push_back(vec);
   }
+  return rows_result_t(
+    pair<double*, double*>(
+      (double*)(&row_lb[0]),
+      (double*)(&row_ub[0])),
+    vecs)
 }
-
 
 
 bool sortFunc(pair<double, int> v1, pair<double, int> v2)
@@ -364,20 +260,20 @@ main(int argc,
   }
 
   // initial constraints
-  Constraint initial_constraint;
+  constraint_t initial_constraint = constraint_new(0);
   size_t n_rows = dist.size();
   for (size_t i = 0; i < n_rows; i++) {
-    Row row(2.0, 2.0);
+    var_coeff_set_t var_coeffs;
     for (size_t j = 0; j < n_rows; j++) {
       if (i == j) continue;
-      row.addVarCoeff(variable_map[i][j], 1.0);
+      addVarCoeff(var_coeffs, variable_map[i][j], 1.0);
     }
-    initial_constraint.addRow(row);
+    constraint_addRow(initial_constraint, 2.0, 2.0, var_coeffs);
   }
 
   // DFS
-  set<Constraint> constraints;
-  set<Constraint> global_constraints;
+  set<constraint_t> constraints;
+  set<constraint_t> global_constraints;
   constraints.insert(initial_constraint);
 
   const double* final_solution = NULL;
@@ -393,17 +289,17 @@ main(int argc,
     constraints.erase(constraints.begin());
 
     // cout << "size: " << global_constraints.size() << endl;
-    if (std::find(global_constraints.begin(), global_constraints.end(), constraint) != global_constraints.end()) {
+    if (global_constraints::find(constraint) != global_constraints.end()) {
       cout << "found" << endl;
       continue;
     } else {
       global_constraints.insert(constraint);
     }
 
-    constraint.calculateRowsInfo();
-    double *row_lb = constraint.getRowLowerBound();
-    double *row_ub = constraint.getRowUpperBound();
-    vector<CoinPackedVector> vecs = constraint.getPackedVectors();
+    rows_result_t rows_result = constraint_getRowsResult(constraint);
+    double *row_lb = rows_result.first.first;
+    double *row_ub = rows_result.first.second;
+    vector<CoinPackedVector> vecs = rows_result.second;
 
     // define the constraint matrix
     CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
@@ -471,16 +367,19 @@ main(int argc,
 	        final_num_sols = n;
 	        final_path = path;
         } else {
-          Constraint new_constraint(constraint, cost); // new constraint
+          constraint_t new_constraint = constraint_new(constraint, cost); // new constraint
 
-	  size_t path_size = path.size();	    
-          Row row(-si->getInfinity(), (double)(path_size - 1));
+	        size_t path_size = path.size();
+          var_coeff_set_t var_coeffs;
           for (size_t i = 0; i < path_size; i++) {
             size_t x = path[i];
             size_t y = path[(i+1) % path_size];
-            row.addVarCoeff(variable_map[x][y], 1.0);
+            addVarCoeff(var_coeffs, variable_map[x][y], 1.0);
           }
-          new_constraint.addRow(row);
+          constraint_addRow(new_constraint,
+                            -si->getInfinity(),
+                            (double)(path_size - 1),
+                            var_coeffs)
 
           constraints.insert(new_constraint);
         }
@@ -499,16 +398,22 @@ main(int argc,
           int offset = non_integer_sols[i].second;
           // branch and bound
           // LEFT: 0
-          Constraint new_constraint_1(constraint, cost); // new constraint
-          Row row_1(0.0, 0.0);
-          row_1.addVarCoeff(offset, 1.0);
-          new_constraint_1.addRow(row_1);
+          constraint_t new_constraint_1 = constraint_new(constraint, cost); // new constraint
+          var_coeff_set_t var_coeffs_1;
+          addVarCoeff(var_coeffs_1, offset, 1.0);
+          constraint_addRow(new_constraint_1,
+                            0.0,
+                            0.0,
+                            var_coeffs_1);
 
           // RIGHT: 1
-          Constraint new_constraint_2(constraint, cost); // new constraint
-          Row row_2(1.0, 1.0);
-          row_2.addVarCoeff(offset, 1.0);
-          new_constraint_2.addRow(row_2);
+          constraint_t new_constraint_2 = constraint_new(constraint, cost); // new constraint
+          var_coeff_set_t var_coeffs_2;
+          addVarCoeff(var_coeffs_2, offset, 1.0);
+          constraint_addRow(new_constraint_2,
+                            1.0,
+                            1.0,
+                            var_coeffs_2);
 
           constraints.insert(new_constraint_1);
           constraints.insert(new_constraint_2);
