@@ -24,11 +24,12 @@ typedef set< pair<int, double> > var_coeff_set_t;
 
 // lower bound, upper bound, variable coeffs
 typedef pair< pair<double, double>, var_coeff_set_t > row_t;
+typedef set< row_t > constraints_t;
 typedef pair< pair<double*, double*>, vector<CoinPackedVector> > rows_result_t;
 
 // constraint
 //       parent cost,   rows
-typedef pair< double, set< row_t > > constraint_t;
+typedef pair< double, constraints_t > node;
 
 typedef path_map_t idx_map_t;
 typedef vector<int> path_t;
@@ -107,26 +108,26 @@ void addVarCoeff(var_coeff_set_t &var_coeffs, int idx, double coeff)
 }
 
 
-constraint_t constraint_new(double parent_cost)
+node_t node_new(double parent_cost)
 {
-  return constraint_t(parent_cost, set< row_t >());
+  return node_t(parent_cost, set< row_t >());
 }
 
-constraint_t constraint_new(constraint_t &constraint, double parent_cost)
+node_t node_new(node_t &node, double parent_cost)
 {
-  return constraint_t(parent_cost, constraint.second);
+  return node_t(parent_cost, node.second);
 }
 
-void constraint_addRow(constraint_t &constraint, double lb, double ub, var_coeff_set_t var_coeffs)
+void node_addRow(node_t &node, double lb, double ub, var_coeff_set_t var_coeffs)
 {
   row_t row(pair<double, double>(lb, ub), var_coeffs);
-  constraint.second.insert(row);
+  node.second.insert(row);
 }
 
-rows_result_t constraint_getRowsResult(constraint_t &constraint)
+rows_result_t node_getRowsResult(node_t &node)
 {
   vector<CoinPackedVector> vecs;
-  set< row_t > rows = constraint.second;
+  constraints_t rows = node.second;
   double* row_lb = new double[rows.size()];
   double* row_ub = new double[rows.size()];
   size_t i = 0;
@@ -260,7 +261,7 @@ main(int argc,
   }
 
   // initial constraints
-  constraint_t initial_constraint = constraint_new(0);
+  node_t root = node_new(0);
   size_t n_rows = dist.size();
   for (size_t i = 0; i < n_rows; i++) {
     var_coeff_set_t var_coeffs;
@@ -268,34 +269,33 @@ main(int argc,
       if (i == j) continue;
       addVarCoeff(var_coeffs, variable_map[i][j], 1.0);
     }
-    constraint_addRow(initial_constraint, 2.0, 2.0, var_coeffs);
+    node_addRow(root, 2.0, 2.0, var_coeffs);
   }
 
   // DFS
-  set<constraint_t> constraints;
-  set<constraint_t> global_constraints;
-  constraints.insert(initial_constraint);
+  set<node_t> nodes;
+  set<constraints_t> global_constraints;
+  nodes.insert(root);
 
   const double* final_solution = NULL;
   int final_num_sols = -1;
   vector<size_t> final_path;
 
   int iter = 0;
-  while (!constraints.empty()) {
-    // cout << "Iteration: " << (iter) << " " << constraints.size() << endl;
+  while (!nodes.empty()) {
     iter++;
 
-    constraint_t constraint = *(constraints.begin());
-    constraints.erase(constraints.begin());
+    node_t node = *(nodes.begin());
+    nodes.erase(nodes.begin());
 
-    if (global_constraints.find(constraint) != global_constraints.end()) {
+    if (global_constraints.find(node.second) != global_constraints.end()) {
       cout << "found" << endl;
       continue;
     } else {
-      global_constraints.insert(constraint);
+      global_constraints.insert(node.second);
     }
 
-    rows_result_t rows_result = constraint_getRowsResult(constraint);
+    rows_result_t rows_result = node_getRowsResult(node);
     double *row_lb = rows_result.first.first;
     double *row_ub = rows_result.first.second;
     vector<CoinPackedVector> vecs = rows_result.second;
@@ -365,7 +365,7 @@ main(int argc,
 	        final_num_sols = n;
 	        final_path = path;
         } else {
-          constraint_t new_constraint = constraint_new(constraint, cost); // new constraint
+          node_t new_code = node_new(node, cost); // new node
 
 	  size_t path_size = path.size();
           var_coeff_set_t var_coeffs;
@@ -374,12 +374,12 @@ main(int argc,
             size_t y = path[(i+1) % path_size];
             addVarCoeff(var_coeffs, variable_map[x][y], 1.0);
           }
-          constraint_addRow(new_constraint,
+          node_addRow(new_code,
                             -si->getInfinity(),
                             (double)(path_size - 1),
                             var_coeffs);
 
-          constraints.insert(new_constraint);
+          nodes.insert(new_code);
         }
       } else {
         vector<pair<double, int>> non_integer_sols;
@@ -396,25 +396,25 @@ main(int argc,
           int offset = non_integer_sols[i].second;
           // branch and bound
           // LEFT: 0
-          constraint_t new_constraint_1 = constraint_new(constraint, cost); // new constraint
+          node_t new_code_1 = node_new(node, cost); // new node
           var_coeff_set_t var_coeffs_1;
           addVarCoeff(var_coeffs_1, offset, 1.0);
-          constraint_addRow(new_constraint_1,
+          node_addRow(new_code_1,
                             0.0,
                             0.0,
                             var_coeffs_1);
 
           // RIGHT: 1
-          constraint_t new_constraint_2 = constraint_new(constraint, cost); // new constraint
+          node_t new_code_2 = node_new(node, cost); // new node
           var_coeff_set_t var_coeffs_2;
           addVarCoeff(var_coeffs_2, offset, 1.0);
-          constraint_addRow(new_constraint_2,
+          node_addRow(new_code_2,
                             1.0,
                             1.0,
                             var_coeffs_2);
 
-          constraints.insert(new_constraint_1);
-          constraints.insert(new_constraint_2);
+          nodes.insert(new_code_1);
+          nodes.insert(new_code_2);
         }
       }
     } else {
