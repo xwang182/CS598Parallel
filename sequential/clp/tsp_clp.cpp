@@ -14,6 +14,7 @@
 #include <cmath>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
 using namespace std;
 
 typedef vector< pair<double, double> > map_t;
@@ -103,8 +104,9 @@ public:
   double getLowerBound();
   double getUpperBound();
   CoinPackedVector getPackedVector();
-private:
   int counter;
+private:
+  // int counter;
   double lb;
   double ub;
   var_coeff_set_t var_coeffs;
@@ -165,7 +167,7 @@ class Constraint
 public:
   Constraint();
   Constraint(double p);
-  Constraint(const Constraint &obj, double parent_cost);
+  Constraint(const Constraint &obj, double cost);
   bool operator< (const Constraint &right) const;
   bool operator== (const Constraint &right) const;
   double* getRowLowerBound();
@@ -174,11 +176,12 @@ public:
   double getParentCost();
   void addRow(Row row);
   void calculateRowsInfo();
+  int counter;
 
 private:
   set< Row > rows;
   double parent_cost;
-  int counter;
+  // int counter;
 
   vector<CoinPackedVector> vecs;
   vector<double> row_lb;
@@ -374,6 +377,7 @@ main(int argc,
 
   // DFS
   set<Constraint> constraints;
+  set<Constraint> global_constraints;
   constraints.insert(initial_constraint);
 
   const double* final_solution = NULL;
@@ -387,6 +391,14 @@ main(int argc,
 
     Constraint constraint = *(constraints.begin());
     constraints.erase(constraints.begin());
+
+    // cout << "size: " << global_constraints.size() << endl;
+    if (std::find(global_constraints.begin(), global_constraints.end(), constraint) != global_constraints.end()) {
+      cout << "found" << endl;
+      continue;
+    } else {
+      global_constraints.insert(constraint);
+    }
 
     constraint.calculateRowsInfo();
     double *row_lb = constraint.getRowLowerBound();
