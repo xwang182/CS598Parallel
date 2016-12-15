@@ -22,7 +22,7 @@ mainmodule ilpprune {
 
   nodegroup Cache {
     entry Cache(double ofub);
-    entry [expedited] void updateOFUB(double ofub, constraint_set_t constraints);
+    entry [expedited] void updateOFUB(double ofub);
     entry [expedited] void addConstraint(set<constraint_t> constraints);
     entry void reportStat();
   }

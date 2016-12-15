@@ -175,11 +175,9 @@ public:
     CkReduction::tupleElement* results;
 
     msg->toTuple(&results, &size);
-    int finished_cut_cnt  = * (int *) results[0].data;
-    int known_cut_cnt = * (int *) results[1].data;
-    int cost_cut_cnt = * (int *) results[2].data;
+    int known_cut_cnt = * (int *) results[0].data;
+    int cost_cut_cnt = * (int *) results[1].data;
 
-    CkPrintf("# cut by seeing a finished constraint: %d\n", finished_cut_cnt);
     CkPrintf("# cut by seeing a known constraint: %d\n", known_cut_cnt);
     CkPrintf("# cut by dropping cost higher than the bound: %d\n", cost_cut_cnt);
 
@@ -273,7 +271,6 @@ private:
   set<constraint_t> known_constraints_;
   set<constraint_t> cached_constraints_;
   set<constraint_set_t> finished_constraints_;
-  int finished_cut_cnt_;
   int known_cut_cnt_;
   int cost_cut_cnt_;
 
@@ -287,7 +284,6 @@ public:
     CmiUnlock(ofub_lock_);
 
     CmiLock(constraint_lock_);
-    finished_cut_cnt_ = 0;
     known_cut_cnt_ = 0;
     CmiUnlock(constraint_lock_);
 
@@ -301,13 +297,10 @@ public:
     CmiDestroyLock(constraint_lock_);
   }
 
-  void updateOFUB(double ofub, constraint_set_t constraints) {
+  void updateOFUB(double ofub) {
     CmiLock(ofub_lock_);
     ofub_ = ofub;
     CmiUnlock(ofub_lock_);
-    CmiLock(constraint_lock_);
-    finished_constraints_.insert(constraints);
-    CmiUnlock(constraint_lock_);
   }
 
   bool checkCPP(double cpp) {
@@ -323,11 +316,11 @@ public:
     return ret;
   }
 
-  void sendCTP(double ctp, int size, const double *solution, const constraint_set_t &constraints) {
+  void sendCTP(double ctp, int size, const double *solution) {
     CmiLock(ofub_lock_);
     if (ctp < ofub_) {
       ofub_ = ctp;
-      thisProxy.updateOFUB(ctp, constraints);
+      thisProxy.updateOFUB(ctp);
       mainProxy.updateOFUB(ctp, size, solution);
       //CkPrintf("Local OFUB updated to %lf\n", ctp);
     }
@@ -342,11 +335,6 @@ public:
 
   bool addConstraint(const constraint_t &constraints) {
     CmiLock(constraint_lock_);
-    if (finished_constraints_.find(constraints.first) != finished_constraints_.end()) {
-      finished_cut_cnt_++;
-      CmiUnlock(constraint_lock_);
-      return false;
-    }
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
       CmiUnlock(constraint_lock_);
       known_cut_cnt_++;
@@ -367,11 +355,6 @@ public:
 
   bool testConstraint(const constraint_t &constraints) {
     CmiLock(constraint_lock_);
-    if (finished_constraints_.find(constraints.first) != finished_constraints_.end()) {
-      finished_cut_cnt_++;
-      CmiUnlock(constraint_lock_);
-      return false;
-    }
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
       known_cut_cnt_++;
       CmiUnlock(constraint_lock_);
@@ -389,12 +372,11 @@ public:
   void reportStat() {
 
     CkReduction::tupleElement tuple_red_n[] = {
-      CkReduction::tupleElement(sizeof(int), &finished_cut_cnt_, CkReduction::sum_int),
       CkReduction::tupleElement(sizeof(int), &known_cut_cnt_, CkReduction::sum_int),
       CkReduction::tupleElement(sizeof(int), &cost_cut_cnt_, CkReduction::sum_int)
     };
 
-    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 3);
+    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 2);
 
     CkCallback cb(CkReductionTarget(Master, getStat), mainProxy);
 
@@ -546,7 +528,7 @@ public:
               CkPrintf("%d=%d ", i->first, (int) i->second);
             }
             CkPrintf("#subtour_constraint = %d\n", subtour_set.size());
-            cache->sendCTP(cost, n, solution, constraint_set);
+            cache->sendCTP(cost, n, solution);
           } else {
             //CkPrintf("Add subtour %d constraints\n", subtour_vec.size() + 1);
             subtour_set.insert(path);
@@ -562,7 +544,6 @@ public:
         }
 
       } else {
-        //cacheProxy.addFinishedConstraint(constraint_set);
         //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
       }
     }
