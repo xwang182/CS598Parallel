@@ -112,11 +112,10 @@ constraint_t constraint_new(double parent_cost)
   return constraint_t(parent_cost, set< row_t >());
 }
 
-constraint_t constraint_new(constraint_t constraint, double parent_cost)
+constraint_t constraint_new(constraint_t &constraint, double parent_cost)
 {
   return constraint_t(parent_cost, constraint.second);
 }
-
 
 void constraint_addRow(constraint_t &constraint, double lb, double ub, var_coeff_set_t var_coeffs)
 {
@@ -126,17 +125,18 @@ void constraint_addRow(constraint_t &constraint, double lb, double ub, var_coeff
 
 rows_result_t constraint_getRowsResult(constraint_t &constraint)
 {
-  vector<double> row_lb;
-  vector<double> row_ub;
   vector<CoinPackedVector> vecs;
   set< row_t > rows = constraint.second;
+  double* row_lb = new double[rows.size()];
+  double* row_ub = new double[rows.size()];
+  size_t i = 0;
   for (auto row : rows) {
     double lb = row.first.first;
     double ub = row.first.second;
     var_coeff_set_t var_coeffs = row.second;
 
-    row_lb.push_back(lb);
-    row_ub.push_back(ub);
+    row_lb[i] = lb;
+    row_ub[i] = ub;
 
     CoinPackedVector vec;
     for (auto p : var_coeffs) {
@@ -145,14 +145,14 @@ rows_result_t constraint_getRowsResult(constraint_t &constraint)
       vec.insert(idx, coeff);
     }
     vecs.push_back(vec);
+    i++;
   }
   return rows_result_t(
     pair<double*, double*>(
-      (double*)(&row_lb[0]),
-      (double*)(&row_ub[0])),
-    vecs)
+      row_lb,
+      row_ub),
+    vecs);
 }
-
 
 bool sortFunc(pair<double, int> v1, pair<double, int> v2)
 {
@@ -285,11 +285,10 @@ main(int argc,
     // cout << "Iteration: " << (iter) << " " << constraints.size() << endl;
     iter++;
 
-    Constraint constraint = *(constraints.begin());
+    constraint_t constraint = *(constraints.begin());
     constraints.erase(constraints.begin());
 
-    // cout << "size: " << global_constraints.size() << endl;
-    if (global_constraints::find(constraint) != global_constraints.end()) {
+    if (global_constraints.find(constraint) != global_constraints.end()) {
       cout << "found" << endl;
       continue;
     } else {
@@ -332,7 +331,6 @@ main(int argc,
         }
       }
 
-
       double cost = si->getObjValue(); // calculateCost(objective, solution, n)
       if (best_cost != -1 && cost > best_cost) continue; // prune
 
@@ -369,7 +367,7 @@ main(int argc,
         } else {
           constraint_t new_constraint = constraint_new(constraint, cost); // new constraint
 
-	        size_t path_size = path.size();
+	  size_t path_size = path.size();
           var_coeff_set_t var_coeffs;
           for (size_t i = 0; i < path_size; i++) {
             size_t x = path[i];
@@ -379,7 +377,7 @@ main(int argc,
           constraint_addRow(new_constraint,
                             -si->getInfinity(),
                             (double)(path_size - 1),
-                            var_coeffs)
+                            var_coeffs);
 
           constraints.insert(new_constraint);
         }
@@ -422,6 +420,9 @@ main(int argc,
     } else {
       // no optimal solution found...
     }
+
+    delete[] row_lb;
+    delete[] row_ub;
   }
 
   cout << "Iterations: " << iter << endl;
