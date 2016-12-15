@@ -29,7 +29,7 @@ typedef pair< pair<double*, double*>, vector<CoinPackedVector> > rows_result_t;
 
 // constraint
 //       parent cost,   rows
-typedef pair< double, constraints_t > node;
+typedef pair< double, constraints_t > node_t;
 
 typedef path_map_t idx_map_t;
 typedef vector<int> path_t;
@@ -289,7 +289,7 @@ main(int argc,
     nodes.erase(nodes.begin());
 
     if (global_constraints.find(node.second) != global_constraints.end()) {
-      cout << "found" << endl;
+      // cout << "found" << endl;
       continue;
     } else {
       global_constraints.insert(node.second);
