@@ -36,6 +36,7 @@ typedef pair<constraint_set_t, subtour_set_t> constraint_t;
 /* readonly */ constraint_vec_t base_constraint_vec;
 /* readonly */ int n_cols;
 /* readonly */ int cache_size;
+/* readonly */ int granularity;
 
 
 vector<int> findShortestPath(path_map_t graph) {
@@ -112,13 +113,18 @@ public:
       cache_size = atoi(msg->argv[3]);
     }
 
+    granularity = 1;
+    if (msg->argc > 4) {
+      granularity = atoi(msg->argv[4]);
+    }
+
     ofub_ = numeric_limits<double>::infinity();
     qd_ = false;
 
     problem = readTspFile(msg->argv[1], city_limit);
     dist = calcDistanceMap(problem);
 
-    CkPrintf("Number of city: %d Cache size: %d\n", problem.size(), cache_size);
+    CkPrintf("Number of city: %d Cache size: %d Granularity: %d\n", problem.size(), cache_size, granularity);
 
     n_cols = problem.size() * (problem.size() - 1) / 2;
     sol_ = new double[n_cols];
@@ -166,7 +172,7 @@ public:
   Master(CkMigrateMessage* msg){}
 
   void groupCreated(CkReductionMsg *msg) {
-    CProxy_Slave::ckNew(0.0, constraint_t());
+    CProxy_Slave::ckNew(0.0, constraint_t(), -1);
   }
 
   void getStat(CkReductionMsg *msg) {
@@ -175,9 +181,11 @@ public:
     CkReduction::tupleElement* results;
 
     msg->toTuple(&results, &size);
-    int known_cut_cnt = * (int *) results[0].data;
-    int cost_cut_cnt = * (int *) results[1].data;
+    int finished_cut_cnt  = * (int *) results[0].data;
+    int known_cut_cnt = * (int *) results[1].data;
+    int cost_cut_cnt = * (int *) results[2].data;
 
+    CkPrintf("# cut by seeing a finished constraint: %d\n", finished_cut_cnt);
     CkPrintf("# cut by seeing a known constraint: %d\n", known_cut_cnt);
     CkPrintf("# cut by dropping cost higher than the bound: %d\n", cost_cut_cnt);
 
@@ -266,26 +274,38 @@ private:
 
 class Cache : public CBase_Cache {
 private:
-  CmiNodeLock ofub_lock_, constraint_lock_;
+  CmiNodeLock ofub_lock_, known_lock_, finished_lock_, dropped_lock_;
   double ofub_;
   set<constraint_t> known_constraints_;
-  set<constraint_t> cached_constraints_;
+  set<constraint_t> cached_known_constraints_;
   set<constraint_set_t> finished_constraints_;
+  set<constraint_set_t> dropped_constraints_;
+  set<constraint_set_t> cached_dropped_constraints_;
+  int finished_cut_cnt_;
   int known_cut_cnt_;
+  int dropped_cut_cnt_;
   int cost_cut_cnt_;
 
 public:
   Cache(double ofub) {
     ofub_lock_ = CmiCreateLock();
-    constraint_lock_ = CmiCreateLock();
+    known_lock_ = CmiCreateLock();
+    finished_lock_ = CmiCreateLock();
+    dropped_lock_ = CmiCreateLock();
     CmiLock(ofub_lock_);
     ofub_ = ofub;
     cost_cut_cnt_ = 0;
     CmiUnlock(ofub_lock_);
 
-    CmiLock(constraint_lock_);
+    CmiLock(finished_lock_);
+    finished_cut_cnt_ = 0;
+    CmiUnlock(finished_lock_);
+    CmiLock(known_lock_);
     known_cut_cnt_ = 0;
-    CmiUnlock(constraint_lock_);
+    CmiUnlock(known_lock_);
+    CmiLock(dropped_lock_);
+    finished_cut_cnt_ = 0;
+    CmiUnlock(dropped_lock_);
 
     contribute(0, NULL, CkReduction::nop,
       CkCallback(CkReductionTarget(Master, groupCreated), mainProxy)
@@ -294,7 +314,9 @@ public:
 
   virtual ~Cache() {
     CmiDestroyLock(ofub_lock_);
-    CmiDestroyLock(constraint_lock_);
+    CmiDestroyLock(known_lock_);
+    CmiDestroyLock(finished_lock_);
+    CmiDestroyLock(dropped_lock_);
   }
 
   void updateOFUB(double ofub) {
@@ -316,7 +338,7 @@ public:
     return ret;
   }
 
-  void sendCTP(double ctp, int size, const double *solution) {
+  void sendCTP(double ctp, int size, const double *solution, const constraint_set_t &constraints) {
     CmiLock(ofub_lock_);
     if (ctp < ofub_) {
       ofub_ = ctp;
@@ -325,58 +347,202 @@ public:
       //CkPrintf("Local OFUB updated to %lf\n", ctp);
     }
     CmiUnlock(ofub_lock_);
+    addFinishedConstraint(constraints);
   }
 
-  void addConstraint(set<constraint_t> constraints) {
-    CmiLock(constraint_lock_);
+  void addFinishedConstraint(const constraint_set_t &constraints) {
+    CmiLock(known_lock_);
+    for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
+      if (i->size() < constraints.size()) {
+        continue;
+      }
+      if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
+        if (i->size() != constraints.size()) {
+          finished_constraints_.erase(i);
+          finished_constraints_.insert(constraints);
+          thisProxy.postFinishedConstraint(constraints);
+        }
+        CmiUnlock(known_lock_);
+        return;
+      }
+    }
+    finished_constraints_.insert(constraints);
+    thisProxy.postFinishedConstraint(constraints);
+    CmiUnlock(known_lock_);
+  }
+
+  void postFinishedConstraint(constraint_set_t constraints) {
+    CmiLock(known_lock_);
+    for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
+      if (i->size() < constraints.size()) {
+        continue;
+      }
+      if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
+        if (i->size() != constraints.size()) {
+          finished_constraints_.erase(i);
+          finished_constraints_.insert(constraints);
+        }
+        CmiUnlock(known_lock_);
+        return;
+      }
+    }
+    finished_constraints_.insert(constraints);
+    CmiUnlock(known_lock_);
+  }
+
+  void addDroppedConstraint(const constraint_set_t &constraints) {
+    CmiLock(dropped_lock_);
+    bool found = false;
+    for (set<constraint_set_t>::iterator i = cached_dropped_constraints_.begin(); i != cached_dropped_constraints_.end(); ++i) {
+      if (i->size() < constraints.size()) {
+        continue;
+      }
+      if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
+        if (i->size() != constraints.size()) {
+          cached_dropped_constraints_.erase(i);
+          cached_dropped_constraints_.insert(constraints);
+        }
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      cached_dropped_constraints_.insert(constraints);
+    }
+    if (cached_dropped_constraints_.size() > cache_size) {
+      thisProxy.postDroppedConstraint(cached_dropped_constraints_);
+      cached_dropped_constraints_.clear();
+    }
+    CmiUnlock(dropped_lock_);
+  }
+
+  void postDroppedConstraint(set<constraint_set_t> constraints) {
+    CmiLock(dropped_lock_);
+    for (set<constraint_set_t>::iterator k = constraints.begin(); k != constraints.end(); ++k) {
+      const constraint_set_t &constraint_set = *k;
+      bool found = false;
+      for (set<constraint_set_t>::iterator i = dropped_constraints_.begin(); i != dropped_constraints_.end(); ++i) {
+        if (i->size() < constraint_set.size()) {
+          continue;
+        }
+        if (includes(i->begin(), i->end(), constraint_set.begin(), constraint_set.end())) {
+          if (i->size() != constraint_set.size()) {
+            dropped_constraints_.erase(i);
+            dropped_constraints_.insert(constraint_set);
+          }
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        dropped_constraints_.insert(constraint_set);
+      }
+    }
+    CmiUnlock(dropped_lock_);
+  }
+  void postConstraint(set<constraint_t> constraints) {
+    CmiLock(known_lock_);
     known_constraints_.insert(constraints.begin(), constraints.end());
-    CmiUnlock(constraint_lock_);
+    CmiUnlock(known_lock_);
   }
 
   bool addConstraint(const constraint_t &constraints) {
-    CmiLock(constraint_lock_);
+    CmiLock(finished_lock_);
+    const constraint_set_t &constraint_set = constraints.first;
+    for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
+      if (constraint_set.size() < i->size()) {
+        continue;
+      }
+      if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+        finished_cut_cnt_++;
+        CmiUnlock(finished_lock_);
+        return false;
+      }
+    }
+    CmiUnlock(finished_lock_);
+    /*CmiLock(dropped_lock_);
+    for (set<constraint_set_t>::iterator i = dropped_constraints_.begin(); i != dropped_constraints_.end(); ++i) {
+      if (constraint_set.size() < i->size()) {
+        continue;
+      }
+      if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+        finished_cut_cnt_++;
+        CmiUnlock(dropped_lock_);
+        return false;
+      }
+    }
+    CmiUnlock(dropped_lock_);*/
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
-      CmiUnlock(constraint_lock_);
+      CmiUnlock(known_lock_);
       known_cut_cnt_++;
       return false;
     }
-    if (cached_constraints_.insert(constraints).second == false) {
-      CmiUnlock(constraint_lock_);
+    if (cached_known_constraints_.insert(constraints).second == false) {
+      CmiUnlock(known_lock_);
       known_cut_cnt_++;
       return false;
     }
-    if (cached_constraints_.size() >= cache_size) {
-      thisProxy.addConstraint(cached_constraints_);
-      cached_constraints_.clear();
+    if (cached_known_constraints_.size() >= cache_size) {
+      thisProxy.postConstraint(cached_known_constraints_);
+      cached_known_constraints_.clear();
     }
-    CmiUnlock(constraint_lock_);
+    CmiUnlock(known_lock_);
     return true;
   }
 
   bool testConstraint(const constraint_t &constraints) {
-    CmiLock(constraint_lock_);
+    CmiLock(known_lock_);
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
       known_cut_cnt_++;
-      CmiUnlock(constraint_lock_);
+      CmiUnlock(known_lock_);
       return false;
     }
-    if (cached_constraints_.find(constraints) != cached_constraints_.end()) {
+    if (cached_known_constraints_.find(constraints) != cached_known_constraints_.end()) {
       known_cut_cnt_++;
-      CmiUnlock(constraint_lock_);
+      CmiUnlock(known_lock_);
       return false;
     }
-    CmiUnlock(constraint_lock_);
+    CmiUnlock(known_lock_);
+    /*CmiLock(dropped_lock_);
+    const constraint_set_t &constraint_set = constraints.first;
+    for (set<constraint_set_t>::iterator i = dropped_constraints_.begin(); i != dropped_constraints_.end(); ++i) {
+      if (constraint_set.size() < i->size()) {
+        continue;
+      }
+      if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+        finished_cut_cnt_++;
+        CmiUnlock(dropped_lock_);
+        return false;
+      }
+    }
+    CmiUnlock(dropped_lock_);*/
+    CmiLock(finished_lock_);
+    const constraint_set_t &constraint_set = constraints.first;
+    for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
+      if (constraint_set.size() < i->size()) {
+        continue;
+      }
+      if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+        finished_cut_cnt_++;
+        CmiUnlock(finished_lock_);
+        return false;
+      }
+    }
+    CmiUnlock(finished_lock_);
     return true;
   }
 
   void reportStat() {
 
+    //CkPrintf("# finished constraints: %d # known constraints: %d\n", finished_constraints_.size(), known_constraints_.size());
+
     CkReduction::tupleElement tuple_red_n[] = {
+      CkReduction::tupleElement(sizeof(int), &finished_cut_cnt_, CkReduction::sum_int),
       CkReduction::tupleElement(sizeof(int), &known_cut_cnt_, CkReduction::sum_int),
       CkReduction::tupleElement(sizeof(int), &cost_cut_cnt_, CkReduction::sum_int)
     };
 
-    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 2);
+    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 3);
 
     CkCallback cb(CkReductionTarget(Master, getStat), mainProxy);
 
@@ -388,172 +554,200 @@ public:
 
 class Slave : public CBase_Slave {
 
+  int iter_;
+  OsiClpSolverInterface *si_;
+  CoinPackedMatrix matrix;
+
 public:
 
   Slave(CkMigrateMessage* msg){}
   
-  Slave(double parent_cost, constraint_t constraints){
+  Slave(double parent_cost, constraint_t constraints, int branch_col) : matrix(false, 0, 0) {
+
+    si_ = NULL;
+
+    Cache *cache = cacheProxy.ckLocalBranch();
+    if (!cache->checkCPP(parent_cost)) {
+      return;
+    }
+
+    iter_ = 0;
+
+    si_ = new OsiClpSolverInterface;
+
+    CoinMessageHandler *msg_hdl = si_->messageHandler();
+    msg_hdl->setLogLevel(0);
+
+    calcLP(parent_cost, constraints, branch_col);
+
+  }
+
+  virtual ~Slave() {
+    if (si_) {
+      delete si_;
+    }
+  }
+
+  void calcLP(double parent_cost, constraint_t constraints, int branch_col){
 
     constraint_set_t &constraint_set = constraints.first;
     subtour_set_t &subtour_set = constraints.second;
 
+    int nbranch = 2;
+    if (branch_col == -1) {
+      nbranch = 1;
+    }
+
     Cache *cache = cacheProxy.ckLocalBranch();
-    if (!cache->checkCPP(parent_cost)) {
-      //cacheProxy.addFinishedConstraint(constraint_set);
-      return;
-    }
 
-    if (!cache->addConstraint(constraints)) {
-      return;
-    }
+    for (int branch = 0; branch < nbranch; ++branch) {
 
-    //CkPrintf("Visited %d cities, remained %d cities, slave initiated\n", visited.size(), remained.size());
-
-    // Create a problem pointer.  We use the base class here.
-    OsiSolverInterface *si;
-
-    // When we instantiate the object, we need a specific derived class.
-    si = new OsiClpSolverInterface;
-    CoinMessageHandler *msg_hdl = si->messageHandler();
-    msg_hdl->setLogLevel(0);
-
-    double *objective = objective_vec.data();
-    double *col_lb = col_lb_vec.data();
-    double *col_ub = col_ub_vec.data();
-
-    // Constraint
-    // Sum: x_ij = 2
-    size_t n_rows = problem.size(); // 1; // V;
-    double *row_lb = new double[n_rows + constraint_set.size() + subtour_set.size()]; //the row lower bounds
-    double *row_ub = new double[n_rows + constraint_set.size() + subtour_set.size()]; //the row upper bounds
-
-    // define the constraint matrix
-    CoinPackedMatrix *matrix = new CoinPackedMatrix(false, 0, 0);
-    matrix->setDimensions(0, n_cols);
-    
-    for (int i = 0; i < n_rows; i++) {
-      CoinPackedVector vec((int) base_constraint_vec[i].size(), base_constraint_vec[i].data(), 1.0);
-      row_lb[i] = 2;
-      row_ub[i] = 2;
-      matrix->appendRow(vec);
-    }
-
-    int cnt = 0;
-    for (constraint_set_t::iterator i = constraint_set.begin(); i != constraint_set.end(); ++i) {
-      CoinPackedVector vec;
-      vec.insert(i->first, 1.0);
-      row_lb[n_rows + cnt] = i->second;
-      row_ub[n_rows + cnt++] = i->second;
-      matrix->appendRow(vec);
-    }
-
-    cnt = 0;
-    for (subtour_set_t::iterator i = subtour_set.begin(); i != subtour_set.end(); ++i) {
-      const vector<int> &path = *i;
-
-      CoinPackedVector vec;
-      int path_size = path.size();
-      for (int j = 0; j < path_size; j++) {
-        int row = path[j];
-        int col = path[(j + 1) % path_size];
-
-        vec.insert(variable_map[row][col], 1.0);
+      constraint_set_t::iterator cons_itr;
+      if (branch_col != -1) {
+        cons_itr = constraint_set.insert(constraint_pair_t(branch_col, branch)).first;
       }
-      row_lb[n_rows + constraint_set.size() + cnt] = 0.0;
-      row_ub[n_rows + constraint_set.size() + cnt++] = (double)(path_size - 1);
-      matrix->appendRow(vec);
-    }
 
-    si->loadProblem(*matrix, col_lb, col_ub, objective, row_lb, row_ub);
+      if (!cache->addConstraint(constraints)) {
+        continue;
+      }
 
-    // Solve the (relaxation of the) problem
-    si->initialSolve();
-    if (si->isProvenOptimal()) {
-      int n = si->getNumCols();
-      const double* solution = si->getColSolution();
+      //CkPrintf("Visited %d cities, remained %d cities, slave initiated\n", visited.size(), remained.size());
 
-      /*for (int i = 0; i < n; ++i) {
-        CkPrintf("%d: %lf\n", i, solution[i]);
-      }*/
+      // Create a problem pointer.  We use the base class here.
 
-      double cost = si->getObjValue();
+      // When we instantiate the object, we need a specific derived class.
 
-      if (cache->checkCPP(cost)) {
 
-        bool is_int = true;
-        for (int i = 0; i < n; ++i) {
-          if (solution[i] == 1 || solution[i] == 0) {
-            continue;
-          }
-          is_int = false;
+      double *objective = objective_vec.data();
+      double *col_lb = col_lb_vec.data();
+      double *col_ub = col_ub_vec.data();
 
-          constraint_set_t::iterator itr = constraint_set.insert(constraint_pair_t(i, false)).first;
-          CkEntryOptions opts;
-          opts.setPriority((int) cost);
-          opts.setQueueing(CK_QUEUEING_ILIFO);
-          if (cache->testConstraint(constraints)) {
-            CProxy_Slave::ckNew(cost, constraints, CK_PE_ANY, &opts);
-          }
-          
-          constraint_set.erase(itr);
-          itr = constraint_set.insert(constraint_pair_t(i, true)).first;
-          if (cache->testConstraint(constraints)) {
-            CProxy_Slave::ckNew(cost, constraints, CK_PE_ANY, &opts);
-          }
-          constraint_set.erase(itr);
+      // Constraint
+      // Sum: x_ij = 2
+      size_t n_rows = problem.size(); // 1; // V;
+      double *row_lb = new double[n_rows + constraint_set.size() + subtour_set.size()]; //the row lower bounds
+      double *row_ub = new double[n_rows + constraint_set.size() + subtour_set.size()]; //the row upper bounds
 
+      // define the constraint matrix
+      matrix.clear();
+      matrix.setDimensions(0, n_cols);
+      
+      for (int i = 0; i < n_rows; i++) {
+        CoinPackedVector vec((int) base_constraint_vec[i].size(), base_constraint_vec[i].data(), 1.0);
+        row_lb[i] = 2;
+        row_ub[i] = 2;
+        matrix.appendRow(vec);
+      }
+
+      int cnt = 0;
+      for (constraint_set_t::iterator i = constraint_set.begin(); i != constraint_set.end(); ++i) {
+        CoinPackedVector vec;
+        vec.insert(i->first, 1.0);
+        row_lb[n_rows + cnt] = i->second;
+        row_ub[n_rows + cnt++] = i->second;
+        matrix.appendRow(vec);
+      }
+
+      cnt = 0;
+      for (subtour_set_t::iterator i = subtour_set.begin(); i != subtour_set.end(); ++i) {
+        const vector<int> &path = *i;
+
+        CoinPackedVector vec;
+        int path_size = path.size();
+        for (int j = 0; j < path_size; j++) {
+          int row = path[j];
+          int col = path[(j + 1) % path_size];
+
+          vec.insert(variable_map[row][col], 1.0);
         }
-        if (is_int) {
+        row_lb[n_rows + constraint_set.size() + cnt] = 0.0;
+        row_ub[n_rows + constraint_set.size() + cnt++] = (double)(path_size - 1);
+        matrix.appendRow(vec);
+      }
 
-          path_map_t graph; // adjacency matrix
-          for (int i = 0; i < dist.size(); i++) {
-            vector<int> row;
-            row.resize(dist.size());
-            graph.push_back(row);
-          }
+      si_->loadProblem(matrix, col_lb, col_ub, objective, row_lb, row_ub);
+      si_->initialSolve();
+      if (si_->isProvenOptimal()) {
+        int n = si_->getNumCols();
+        double* solution = new double[n];
+        memcpy(solution, si_->getColSolution(), sizeof(double) * n);
 
-          // set up graph
-          for (int i = 0; i < dist.size() - 1; i++) {
-            for (int j = i + 1; j < dist.size(); j++) {
-              graph[i][j] = (int)(solution[variable_map[i][j]]);
-              graph[j][i] = (int)(solution[variable_map[j][i]]);
+        double cost = si_->getObjValue();
+
+        if (cache->checkCPP(cost)) {
+
+          bool is_int = true;
+          for (int i = 0; i < n; ++i) {
+            if (solution[i] == 1 || solution[i] == 0) {
+              continue;
             }
-          }
+            is_int = false;
 
-          vector<int> path = findShortestPath(graph);
-
-          if (path.size() == dist.size()) {
-            CkPrintf("Total cost = %lf #constraint = %d ", cost, constraint_set.size());
-            for (constraint_set_t::iterator i = constraint_set.begin(); i != constraint_set.end(); ++i) {
-              CkPrintf("%d=%d ", i->first, (int) i->second);
+            if (++iter_ >= granularity) {
+              CkEntryOptions opts;
+              opts.setPriority((int) cost);
+              opts.setQueueing(CK_QUEUEING_ILIFO);
+              CProxy_Slave::ckNew(cost, constraints, i, CK_PE_ANY, &opts);
+            } else {
+              calcLP(cost, constraints, i);
             }
-            CkPrintf("#subtour_constraint = %d\n", subtour_set.size());
-            cache->sendCTP(cost, n, solution);
+
+          }
+          if (is_int) {
+
+            path_map_t graph; // adjacency matrix
+            for (int i = 0; i < dist.size(); i++) {
+              vector<int> row;
+              row.resize(dist.size());
+              graph.push_back(row);
+            }
+
+            // set up graph
+            for (int i = 0; i < dist.size() - 1; i++) {
+              for (int j = i + 1; j < dist.size(); j++) {
+                graph[i][j] = (int) (solution[variable_map[i][j]]);
+                graph[j][i] = (int) (solution[variable_map[j][i]]);
+              }
+            }
+
+            vector<int> path = findShortestPath(graph);
+
+            if (path.size() == dist.size()) {
+              /*CkPrintf("Total cost = %lf #constraint = %d ", cost, constraint_set.size());
+              for (constraint_set_t::iterator i = constraint_set.begin(); i != constraint_set.end(); ++i) {
+                CkPrintf("%d=%d ", i->first, (int) i->second);
+              }
+              CkPrintf("#subtour_constraint = %d\n", subtour_set.size());*/
+              cache->sendCTP(cost, n, solution, constraint_set);
+            } else {
+              //CkPrintf("Add subtour %d constraints\n", subtour_vec.size() + 1);
+              subtour_set.insert(path);
+              CkEntryOptions opts;
+              opts.setPriority(0);
+              opts.setQueueing(CK_QUEUEING_IFIFO);
+              if (cache->testConstraint(constraints)) {
+                CProxy_Slave::ckNew(cost, constraints, -1, CK_PE_ANY, &opts);
+              }
+            }
           } else {
-            //CkPrintf("Add subtour %d constraints\n", subtour_vec.size() + 1);
-            subtour_set.insert(path);
-            CkEntryOptions opts;
-            opts.setPriority(0);
-            opts.setQueueing(CK_QUEUEING_IFIFO);
-            if (cache->testConstraint(constraints)) {
-              CProxy_Slave::ckNew(cost, constraints, CK_PE_ANY, &opts);
-            }
+            //CkPrintf("Partial cost = %lf #constraint = %d\n", cost, msg->vec_length);
           }
-        } else {
-          //CkPrintf("Partial cost = %lf #constraint = %d\n", cost, msg->vec_length);
-        }
 
-      } else {
-        //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
+        } else {
+          //cache->addDroppedConstraint(constraint_set);
+          //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
+        }
+      }
+
+      delete row_ub;
+      delete row_lb;
+
+      if (branch_col != -1) {
+        constraint_set.erase(cons_itr);
       }
     }
-
-    delete row_ub;
-    delete row_lb;
-    delete si;
 
   }
-
 
 
 };

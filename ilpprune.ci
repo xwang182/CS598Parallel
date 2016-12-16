@@ -23,12 +23,14 @@ mainmodule ilpprune {
   nodegroup Cache {
     entry Cache(double ofub);
     entry [expedited] void updateOFUB(double ofub);
-    entry [expedited] void addConstraint(set<constraint_t> constraints);
+    entry [expedited] void postConstraint(set<constraint_t> constraints);
+    entry [expedited] void postFinishedConstraint(constraint_set_t constraints);
+    entry [expedited] void postDroppedConstraint(set<constraint_set_t> constraints);
     entry void reportStat();
   }
 
   chare Slave {
-    entry Slave(double parent_cost, constraint_t constraints);
+    entry Slave(double parent_cost, constraint_t constraints, int branch_col);
 
   };
 };
