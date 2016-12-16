@@ -332,7 +332,12 @@ main(int argc,
       }
 
       double cost = si->getObjValue(); // calculateCost(objective, solution, n)
-      if (best_cost != -1 && cost > best_cost) continue; // prune
+      if (best_cost != -1 && cost > best_cost) {
+        delete[] row_lb;
+        delete[] row_ub;
+        delete si;
+        continue; // prune
+      }
 
       if (all_integers) {
         // subtour
@@ -367,7 +372,7 @@ main(int argc,
         } else {
           node_t new_code = node_new(node, cost); // new node
 
-	  size_t path_size = path.size();
+	        size_t path_size = path.size();
           var_coeff_set_t var_coeffs;
           for (size_t i = 0; i < path_size; i++) {
             size_t x = path[i];
@@ -420,9 +425,9 @@ main(int argc,
     } else {
       // no optimal solution found...
     }
-
     delete[] row_lb;
     delete[] row_ub;
+    delete si;
   }
 
   cout << "Iterations: " << iter << endl;
