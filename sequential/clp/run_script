@@ -1,0 +1,14 @@
+#!/bin/sh
+#PBS -q cse
+#PBS -l nodes=1:ppn=12
+#PBS -N result_tsp_clp
+#PBS -j oe
+#PBS -l walltime=00:30:00
+
+# cd ~/ywang189/mp0 #this is the path of the program that you're running
+cd /home/ywang189/project/CS598Parallel/sequential/clp
+./gennodelist.sh > nodelist
+
+echo "Program Starting"
+time ./tsp_clp ../../data/test20.tsp
+echo "Program Ends"
