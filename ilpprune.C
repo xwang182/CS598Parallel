@@ -373,9 +373,11 @@ public:
     CmiLock(known_lock_);
     for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
       if (i->size() < constraints.size()) {
-        continue;
-      }
-      if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
+        if (includes(constraints.begin(), constraints.end(), i->begin(), i->end())) {
+          CmiUnlock(known_lock_);
+          return;
+        }
+      } else if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
         if (i->size() != constraints.size()) {
           set<constraint_set_t>::iterator tmp = i++;
           finished_constraints_.erase(tmp);
@@ -391,9 +393,11 @@ public:
     CmiLock(known_lock_);
     for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
       if (i->size() < constraints.size()) {
-        continue;
-      }
-      if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
+        if (includes(constraints.begin(), constraints.end(), i->begin(), i->end())) {
+          CmiUnlock(known_lock_);
+          return;
+        }
+      } else if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
         if (i->size() != constraints.size()) {
           set<constraint_set_t>::iterator tmp = i++;
           finished_constraints_.erase(tmp);
@@ -413,11 +417,10 @@ public:
       }
       if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
         if (i->size() != constraints.size()) {
-          cached_dropped_constraints_.erase(i);
-          cached_dropped_constraints_.insert(constraints);
+          set<constraint_set_t>::iterator tmp = i++;
+          cached_dropped_constraints_.erase(tmp);
         }
         found = true;
-        break;
       }
     }
     if (!found) {
