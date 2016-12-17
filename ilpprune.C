@@ -184,11 +184,12 @@ public:
     int finished_cut_cnt  = * (int *) results[0].data;
     int known_cut_cnt = * (int *) results[1].data;
     int cost_cut_cnt = * (int *) results[2].data;
+    int eval_cnt = * (int *) results[3].data;
 
     CkPrintf("# cut by seeing a finished constraint: %d\n", finished_cut_cnt);
     CkPrintf("# cut by seeing a known constraint: %d\n", known_cut_cnt);
     CkPrintf("# cut by dropping cost higher than the bound: %d\n", cost_cut_cnt);
-
+    CkPrintf("# of LP evaluated: %d\n", eval_cnt);
 
     CkExit();
   }
@@ -274,17 +275,21 @@ private:
 
 class Cache : public CBase_Cache {
 private:
-  CmiNodeLock ofub_lock_, known_lock_, finished_lock_, dropped_lock_;
+
+  CmiNodeLock ofub_lock_, known_lock_, finished_lock_, dropped_lock_, eval_lock_;
   double ofub_;
+
   set<constraint_t> known_constraints_;
   set<constraint_t> cached_known_constraints_;
   set<constraint_set_t> finished_constraints_;
   set<constraint_set_t> dropped_constraints_;
   set<constraint_set_t> cached_dropped_constraints_;
+
   int finished_cut_cnt_;
   int known_cut_cnt_;
   int dropped_cut_cnt_;
   int cost_cut_cnt_;
+  int eval_cnt_;
 
 public:
   Cache(double ofub) {
@@ -292,6 +297,7 @@ public:
     known_lock_ = CmiCreateLock();
     finished_lock_ = CmiCreateLock();
     dropped_lock_ = CmiCreateLock();
+    eval_lock_ = CmiCreateLock();
     CmiLock(ofub_lock_);
     ofub_ = ofub;
     cost_cut_cnt_ = 0;
@@ -300,12 +306,18 @@ public:
     CmiLock(finished_lock_);
     finished_cut_cnt_ = 0;
     CmiUnlock(finished_lock_);
+
     CmiLock(known_lock_);
     known_cut_cnt_ = 0;
     CmiUnlock(known_lock_);
+
     CmiLock(dropped_lock_);
     finished_cut_cnt_ = 0;
     CmiUnlock(dropped_lock_);
+
+    CmiLock(eval_lock_);
+    eval_cnt_ = 0;
+    CmiUnlock(eval_lock_);
 
     contribute(0, NULL, CkReduction::nop,
       CkCallback(CkReductionTarget(Master, groupCreated), mainProxy)
@@ -317,6 +329,7 @@ public:
     CmiDestroyLock(known_lock_);
     CmiDestroyLock(finished_lock_);
     CmiDestroyLock(dropped_lock_);
+    CmiDestroyLock(eval_lock_);
   }
 
   void updateOFUB(double ofub) {
@@ -350,6 +363,12 @@ public:
     addFinishedConstraint(constraints);
   }
 
+  void finishEval() {
+    CmiLock(eval_lock_);
+    eval_cnt_++;
+    CmiUnlock(eval_lock_);
+  }
+
   void addFinishedConstraint(const constraint_set_t &constraints) {
     CmiLock(known_lock_);
     for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
@@ -358,12 +377,9 @@ public:
       }
       if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
         if (i->size() != constraints.size()) {
-          finished_constraints_.erase(i);
-          finished_constraints_.insert(constraints);
-          thisProxy.postFinishedConstraint(constraints);
+          set<constraint_set_t>::iterator tmp = i++;
+          finished_constraints_.erase(tmp);
         }
-        CmiUnlock(known_lock_);
-        return;
       }
     }
     finished_constraints_.insert(constraints);
@@ -379,11 +395,9 @@ public:
       }
       if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
         if (i->size() != constraints.size()) {
-          finished_constraints_.erase(i);
-          finished_constraints_.insert(constraints);
+          set<constraint_set_t>::iterator tmp = i++;
+          finished_constraints_.erase(tmp);
         }
-        CmiUnlock(known_lock_);
-        return;
       }
     }
     finished_constraints_.insert(constraints);
@@ -539,10 +553,11 @@ public:
     CkReduction::tupleElement tuple_red_n[] = {
       CkReduction::tupleElement(sizeof(int), &finished_cut_cnt_, CkReduction::sum_int),
       CkReduction::tupleElement(sizeof(int), &known_cut_cnt_, CkReduction::sum_int),
-      CkReduction::tupleElement(sizeof(int), &cost_cut_cnt_, CkReduction::sum_int)
+      CkReduction::tupleElement(sizeof(int), &cost_cut_cnt_, CkReduction::sum_int),
+      CkReduction::tupleElement(sizeof(int), &eval_cnt_, CkReduction::sum_int)
     };
 
-    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 3);
+    CkReductionMsg* msg = CkReductionMsg::buildFromTuple(tuple_red_n, 4);
 
     CkCallback cb(CkReductionTarget(Master, getStat), mainProxy);
 
@@ -568,6 +583,7 @@ public:
 
     Cache *cache = cacheProxy.ckLocalBranch();
     if (!cache->checkCPP(parent_cost)) {
+      cache->addFinishedConstraint(constraints.first);
       return;
     }
 
@@ -667,6 +683,8 @@ public:
 
       si_->loadProblem(matrix, col_lb, col_ub, objective, row_lb, row_ub);
       si_->initialSolve();
+      cache->finishEval();
+
       if (si_->isProvenOptimal()) {
         int n = si_->getNumCols();
         double* solution = new double[n];
@@ -734,7 +752,7 @@ public:
           }
 
         } else {
-          //cache->addDroppedConstraint(constraint_set);
+          cache->addFinishedConstraint(constraint_set);
           //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
         }
       }
