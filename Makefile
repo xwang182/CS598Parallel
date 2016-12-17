@@ -123,7 +123,7 @@ test_ilpprune: ilpprune
 	./charmrun ++p 16 ++local ./ilpprune $(TSPFILE) $(CITYLIMIT) $(CACHESIZE) $(GRANULARITY)
 
 clean:
-	rm -f conv-host *.o charmrun project coarse_ofb ilp lipprune
+	rm -f conv-host *.o charmrun project coarse_ofb ilp ilpprune
 	rm -f *.def.h *.decl.h
 	rm -f *.log.gz *.projrc *.topo *.sts *.sum
 
