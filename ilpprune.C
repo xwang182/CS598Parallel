@@ -312,7 +312,7 @@ public:
     CmiUnlock(known_lock_);
 
     CmiLock(dropped_lock_);
-    finished_cut_cnt_ = 0;
+    dropped_cut_cnt_ = 0;
     CmiUnlock(dropped_lock_);
 
     CmiLock(eval_lock_);
@@ -381,6 +381,9 @@ public:
         if (i->size() != constraints.size()) {
           set<constraint_set_t>::iterator tmp = i++;
           finished_constraints_.erase(tmp);
+        } else {
+          CmiUnlock(known_lock_);
+          return;
         }
       }
     }
@@ -401,6 +404,9 @@ public:
         if (i->size() != constraints.size()) {
           set<constraint_set_t>::iterator tmp = i++;
           finished_constraints_.erase(tmp);
+        } else {
+          CmiUnlock(known_lock_);
+          return;
         }
       }
     }
@@ -413,14 +419,18 @@ public:
     bool found = false;
     for (set<constraint_set_t>::iterator i = cached_dropped_constraints_.begin(); i != cached_dropped_constraints_.end(); ++i) {
       if (i->size() < constraints.size()) {
-        continue;
-      }
-      if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
+        if (includes(constraints.begin(), constraints.end(), i->begin(), i->end())) {
+          CmiLock(dropped_lock_);
+          return;
+        }
+      } else if (includes(i->begin(), i->end(), constraints.begin(), constraints.end())) {
         if (i->size() != constraints.size()) {
           set<constraint_set_t>::iterator tmp = i++;
           cached_dropped_constraints_.erase(tmp);
+        } else {
+          CmiLock(dropped_lock_);
+          return;
         }
-        found = true;
       }
     }
     if (!found) {
@@ -440,15 +450,18 @@ public:
       bool found = false;
       for (set<constraint_set_t>::iterator i = dropped_constraints_.begin(); i != dropped_constraints_.end(); ++i) {
         if (i->size() < constraint_set.size()) {
-          continue;
-        }
-        if (includes(i->begin(), i->end(), constraint_set.begin(), constraint_set.end())) {
-          if (i->size() != constraint_set.size()) {
-            dropped_constraints_.erase(i);
-            dropped_constraints_.insert(constraint_set);
+          if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+            found = true;
+            break;
           }
-          found = true;
-          break;
+        } else if (includes(i->begin(), i->end(), constraint_set.begin(), constraint_set.end())) {
+          if (i->size() != constraint_set.size()) {
+            set<constraint_set_t>::iterator tmp = i++;
+            dropped_constraints_.erase(tmp);
+          } else {
+            found = true;
+            break;
+          }
         }
       }
       if (!found) {
@@ -464,8 +477,8 @@ public:
   }
 
   bool addConstraint(const constraint_t &constraints) {
-    CmiLock(finished_lock_);
-    const constraint_set_t &constraint_set = constraints.first;
+     const constraint_set_t &constraint_set = constraints.first;
+   CmiLock(finished_lock_);
     for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
       if (constraint_set.size() < i->size()) {
         continue;
@@ -477,18 +490,28 @@ public:
       }
     }
     CmiUnlock(finished_lock_);
-    /*CmiLock(dropped_lock_);
+    CmiLock(dropped_lock_);
+    for (set<constraint_set_t>::iterator i = cached_dropped_constraints_.begin(); i != cached_dropped_constraints_.end(); ++i) {
+      if (constraint_set.size() < i->size()) {
+        continue;
+      }
+      if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+        dropped_cut_cnt_++;
+        CmiUnlock(dropped_lock_);
+        return false;
+      }
+    }
     for (set<constraint_set_t>::iterator i = dropped_constraints_.begin(); i != dropped_constraints_.end(); ++i) {
       if (constraint_set.size() < i->size()) {
         continue;
       }
       if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
-        finished_cut_cnt_++;
+        dropped_cut_cnt_++;
         CmiUnlock(dropped_lock_);
         return false;
       }
     }
-    CmiUnlock(dropped_lock_);*/
+    CmiUnlock(dropped_lock_);
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
       CmiUnlock(known_lock_);
       known_cut_cnt_++;
@@ -508,6 +531,7 @@ public:
   }
 
   bool testConstraint(const constraint_t &constraints) {
+    const constraint_set_t &constraint_set = constraints.first;
     CmiLock(known_lock_);
     if (known_constraints_.find(constraints) != known_constraints_.end()) {
       known_cut_cnt_++;
@@ -520,21 +544,29 @@ public:
       return false;
     }
     CmiUnlock(known_lock_);
-    /*CmiLock(dropped_lock_);
-    const constraint_set_t &constraint_set = constraints.first;
+    CmiLock(dropped_lock_);
+    for (set<constraint_set_t>::iterator i = cached_dropped_constraints_.begin(); i != cached_dropped_constraints_.end(); ++i) {
+      if (constraint_set.size() < i->size()) {
+        continue;
+      }
+      if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
+        dropped_cut_cnt_++;
+        CmiUnlock(dropped_lock_);
+        return false;
+      }
+    }
     for (set<constraint_set_t>::iterator i = dropped_constraints_.begin(); i != dropped_constraints_.end(); ++i) {
       if (constraint_set.size() < i->size()) {
         continue;
       }
       if (includes(constraint_set.begin(), constraint_set.end(), i->begin(), i->end())) {
-        finished_cut_cnt_++;
+        dropped_cut_cnt_++;
         CmiUnlock(dropped_lock_);
         return false;
       }
     }
-    CmiUnlock(dropped_lock_);*/
+    CmiUnlock(dropped_lock_);
     CmiLock(finished_lock_);
-    const constraint_set_t &constraint_set = constraints.first;
     for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
       if (constraint_set.size() < i->size()) {
         continue;
@@ -586,7 +618,7 @@ public:
 
     Cache *cache = cacheProxy.ckLocalBranch();
     if (!cache->checkCPP(parent_cost)) {
-      cache->addFinishedConstraint(constraints.first);
+      cache->addDroppedConstraint(constraints.first);
       return;
     }
 
@@ -755,7 +787,7 @@ public:
           }
 
         } else {
-          cache->addFinishedConstraint(constraint_set);
+          cache->addDroppedConstraint(constraint_set);
           //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
         }
       }
