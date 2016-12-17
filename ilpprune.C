@@ -371,7 +371,7 @@ public:
 
   void addFinishedConstraint(const constraint_set_t &constraints) {
     CmiLock(known_lock_);
-    for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
+    /*for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
       if (i->size() < constraints.size()) {
         if (includes(constraints.begin(), constraints.end(), i->begin(), i->end())) {
           CmiUnlock(known_lock_);
@@ -386,7 +386,7 @@ public:
           return;
         }
       }
-    }
+    }*/
     finished_constraints_.insert(constraints);
     thisProxy.postFinishedConstraint(constraints);
     CmiUnlock(known_lock_);
@@ -394,7 +394,7 @@ public:
 
   void postFinishedConstraint(constraint_set_t constraints) {
     CmiLock(known_lock_);
-    for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
+    /*for (set<constraint_set_t>::iterator i = finished_constraints_.begin(); i != finished_constraints_.end(); ++i) {
       if (i->size() < constraints.size()) {
         if (includes(constraints.begin(), constraints.end(), i->begin(), i->end())) {
           CmiUnlock(known_lock_);
@@ -409,7 +409,7 @@ public:
           return;
         }
       }
-    }
+    }*/
     finished_constraints_.insert(constraints);
     CmiUnlock(known_lock_);
   }
