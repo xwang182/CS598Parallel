@@ -618,7 +618,7 @@ public:
 
     Cache *cache = cacheProxy.ckLocalBranch();
     if (!cache->checkCPP(parent_cost)) {
-      cache->addDroppedConstraint(constraints.first);
+      cache->addFinishedConstraint(constraints.first);
       return;
     }
 
@@ -787,7 +787,7 @@ public:
           }
 
         } else {
-          cache->addDroppedConstraint(constraint_set);
+          cache->addFinishedConstraint(constraint_set);
           //CkPrintf("Dropped cost = %lf #constraint = %d\n", cost, msg->vec_length);
         }
       }

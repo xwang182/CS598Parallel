@@ -11,6 +11,7 @@ mainmodule ilpprune {
   readonly constraint_vec_t base_constraint_vec;
   readonly int n_cols;
   readonly int cache_size;
+  readonly int granularity;
 
   mainchare Master {
     entry Master(CkArgMsg* msg);
